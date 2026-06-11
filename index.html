@@ -191,12 +191,12 @@
   .footer { padding: 12px 20px; text-align: center; color: var(--text2); font-size: 11px; border-top: 1px solid var(--border); }
 
   /* ── Recruiter tabs ──────────────────────────────────────────── */
-  .tab-nav { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 20px; display: flex; gap: 0; overflow-x: auto; position: sticky; top: 57px; z-index: 9; scrollbar-width: none; }
+  .tab-nav { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 8px 20px; display: flex; gap: 5px; align-items: center; overflow-x: auto; position: sticky; top: 57px; z-index: 9; scrollbar-width: none; }
   .tab-nav::-webkit-scrollbar { display: none; }
-  .tab-btn { padding: 10px 16px; border: none; background: none; color: var(--text2); font-size: 12px; font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; transition: color 0.15s, border-color 0.15s; font-family: inherit; flex-shrink: 0; }
-  .tab-btn:hover { color: var(--text); }
-  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
-  .tab-sep { width: 1px; background: var(--border); margin: 8px 10px; flex-shrink: 0; }
+  .tab-btn { padding: 5px 13px; border: 1.5px solid var(--border); border-radius: 20px; background: var(--bg); color: var(--text2); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.15s; font-family: inherit; flex-shrink: 0; }
+  .tab-btn:hover { border-color: rgba(244,93,72,0.45); color: var(--accent); background: rgba(244,93,72,0.05); }
+  .tab-btn.active { color: #fff; background: var(--accent); border-color: var(--accent); box-shadow: 0 2px 8px rgba(244,93,72,0.28); }
+  .tab-sep { width: 1px; height: 18px; background: var(--border); flex-shrink: 0; margin: 0 3px; }
 
   /* ── Per-recruiter view ──────────────────────────────────────── */
   .rec-header { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -318,14 +318,7 @@
     </div>
     <div class="status-badge">LIVE</div>
   </div>
-  <div style="display:flex;align-items:center;gap:10px">
-    <div class="updated-time" id="updatedTime">Loading…</div>
-    <a href="https://jaimetavarez1.github.io/Eng-invite-dashboard/" target="_blank"
-       style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--accent);background:rgba(244,93,72,0.08);border:1px solid rgba(244,93,72,0.2);border-radius:6px;padding:4px 10px;text-decoration:none;white-space:nowrap"
-       title="Open live version in browser">
-      ↗ Open in Chrome
-    </a>
-  </div>
+  <div class="updated-time" id="updatedTime">Loading…</div>
 </div>
 
 <div class="tab-nav" id="tabNav"></div>
@@ -1031,33 +1024,43 @@ function setScenario(scenario, el) {
 // Apps Script proxy — serves all sheet data as JSON without requiring
 // the sheet to be shared publicly.
 const APPS_SCRIPT_URL = 'https://script.google.com/a/macros/gusto.com/s/AKfycbw1GDnQXS_r7ZG2zGyU8w7jjqi6GUzqfHOCzMirkb4jnbOeKQd7GUL2MizKI-soLGA/exec';
-let _appsScriptCache = null;
+var _appsScriptCache = null;
+var _appsScriptFetch = null;  // shared in-flight promise — prevents duplicate JSONP requests
 
 function fetchAllFromAppsScript() {
   if (_appsScriptCache) return Promise.resolve(_appsScriptCache);
-  return new Promise((resolve, reject) => {
-    const cbName = '_gscb_' + Date.now();
+  // Key fix: if a fetch is already in flight, ALL callers share the same promise
+  // (previously concurrent calls got the same cbName and overwrote each other)
+  if (_appsScriptFetch) return _appsScriptFetch;
+  _appsScriptFetch = new Promise((resolve, reject) => {
+    // Unique name: timestamp + random suffix to prevent any collision
+    const cbName = '_gscb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
     const script = document.createElement('script');
     const timer = setTimeout(() => {
       delete window[cbName];
-      document.head.removeChild(script);
-      reject(new Error('Apps Script request timed out — make sure you are signed into your Gusto Google account'));
-    }, 15000);
+      try { document.head.removeChild(script); } catch(e) {}
+      _appsScriptFetch = null;
+      reject(new Error('Apps Script timed out — ensure you are signed into your Gusto Google account in this browser'));
+    }, 18000);
     window[cbName] = (data) => {
       clearTimeout(timer);
       delete window[cbName];
-      document.head.removeChild(script);
+      try { document.head.removeChild(script); } catch(e) {}
       _appsScriptCache = data;
+      _appsScriptFetch = null;
+      console.log('[AppsScript] Loaded sheets:', Object.keys(data));
       resolve(data);
     };
     script.onerror = () => {
       clearTimeout(timer);
       delete window[cbName];
-      reject(new Error('Apps Script failed to load — check that you are signed into your Gusto Google account'));
+      _appsScriptFetch = null;
+      reject(new Error('Apps Script failed to load — check Gusto Google sign-in'));
     };
     script.src = `${APPS_SCRIPT_URL}?callback=${cbName}`;
     document.head.appendChild(script);
   });
+  return _appsScriptFetch;
 }
 
 function arrayToTSV(rows) {
@@ -1111,8 +1114,17 @@ async function fetchSheetRows(sheetName) {
   }
   // Standalone — fetch all sheets via Apps Script proxy (no public sheet required)
   const all = await fetchAllFromAppsScript();
-  if (!all[sheetName]) throw new Error(`Sheet "${sheetName}" not found in Apps Script response`);
-  return arrayToTSV(all[sheetName]);
+  if (all[sheetName]) return arrayToTSV(all[sheetName]);
+  // Fuzzy fallback: strip "[PLEASE DO NOT TOUCH]" suffixes, case-insensitive
+  const norm = s => s.toLowerCase().replace(/\s*\[.*?\]/g, '').trim();
+  const normTarget = norm(sheetName);
+  const fuzzyKey = Object.keys(all).find(k => norm(k) === normTarget);
+  if (fuzzyKey) {
+    console.log(`[AppsScript] Fuzzy-matched "${sheetName}" → "${fuzzyKey}"`);
+    return arrayToTSV(all[fuzzyKey]);
+  }
+  console.error(`[AppsScript] Sheet not found: "${sheetName}". Available:`, Object.keys(all));
+  throw new Error(`Sheet "${sheetName}" not found. Available: ${Object.keys(all).join(', ')}`);
 }
 
 // ── Fetch accepted offers live ─────────────────────────────────────
@@ -1165,6 +1177,11 @@ async function fetchAcceptedOffers() {
         });
       }
     }
+    // Sort by accepted date descending (most recent first)
+    window._acceptedOffersList.sort((a, b) => {
+      const toMs = d => { const p = (d||'').split('/'); return p.length === 3 ? new Date(+p[2], +p[0]-1, +p[1]).getTime() : 0; };
+      return toMs(b.resolved) - toMs(a.resolved);
+    });
     if (total > 0) {
       document.getElementById('kpiAccepted').textContent = total;
       document.getElementById('pillStarted').textContent = 'May: ' + may;
@@ -1461,6 +1478,20 @@ async function fetchPipelinePerJob() {
       try { renderRecruiterView(currentRecruiter); } catch(e) { console.error('renderRecruiterView after pipeline:', e); }
     }
   } catch(e) { console.error('[Pipeline] fetchPipelinePerJob failed:', e); }
+}
+
+// ── Pipeline data refresh ──────────────────────────────────────────
+async function refreshPipelineData(btnEl) {
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = '↺ Refreshing…'; }
+  _appsScriptCache = null;
+  _appsScriptFetch = null;
+  window._pipelineHistory = {};
+  LIVE_PIPELINE = {};
+  try {
+    await Promise.all([fetchPipelineHistory(), fetchPipelinePerJob()]);
+  } catch(e) { console.error('[Refresh] failed:', e); }
+  if (btnEl) { btnEl.disabled = false; btnEl.textContent = '↺ Refresh'; }
+  if (currentRecruiter) try { renderRecruiterView(currentRecruiter); } catch(e) {}
 }
 
 // ── Tab navigation ─────────────────────────────────────────────────
@@ -1922,7 +1953,10 @@ function renderRecruiterView(r) {
     })()}
     <div class="rec-mid">
       <div class="rec-section">
-        <div class="rec-section-title">Pipeline per Req ${isLive ? `<span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--green)">· 🟢 live</span>` : `<span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text2)">· manual</span>`}</div>
+        <div class="rec-section-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <span>Pipeline per Req ${isLive ? `<span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--green)">· 🟢 live</span>` : `<span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text2)">· manual</span>`}</span>
+          <button onclick="refreshPipelineData(this)" style="flex-shrink:0;font-size:10px;font-weight:600;color:var(--accent);background:rgba(244,93,72,0.08);border:1px solid rgba(244,93,72,0.2);border-radius:6px;padding:3px 9px;cursor:pointer;font-family:inherit;transition:all 0.15s" onmouseover="this.style.background='rgba(244,93,72,0.14)'" onmouseout="this.style.background='rgba(244,93,72,0.08)'">↺ Refresh</button>
+        </div>
         <div class="req-pills">${reqRows}</div>
         ${isLive
           ? `<div style="font-size:10px;color:var(--text2);margin-top:8px">Updated ${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'})} · ${liveReqs.length} open req${liveReqs.length !== 1 ? 's' : ''}</div>`
