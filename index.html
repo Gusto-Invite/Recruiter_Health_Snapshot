@@ -2425,7 +2425,7 @@ function _submitPlan() {
    ═══════════════════════════════════════════════════════════════ */
 (function(){
   const CFG = {
-    ENDPOINT: '',   /* <<< PASTE your Apps Script /exec URL here after deploy */
+    ENDPOINT: 'https://script.google.com/a/macros/gusto.com/s/AKfycbzxC_XvuvaknOqaoxHzJ_3uSet1AozBrGBnSt34f1vi7kDCNrDYOsHfVnGMBF5HC-E/exec',
     SHEET_ID: '1rv6HDEAH5s13rxVNC0F20TUVuLv7EIHMVWKOkap0CS4',
     APPEND:  'mcp__c61042c2-2fb3-4e2e-888c-dce52a6a8c86__append',
     FETCH:   'mcp__c61042c2-2fb3-4e2e-888c-dce52a6a8c86__fetch',
@@ -2629,7 +2629,7 @@ function _submitPlan() {
   function rowOf(f){ return [f.ts, f.reviewer, f.org, f.section, f.catLabel, f.note, f.suggested, f.highlighted, '', f.source]; }
   async function sendOne(f){
     if(CFG.ENDPOINT){
-      await fetch(CFG.ENDPOINT, {method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(f)});
+      await fetch(CFG.ENDPOINT, {method:'POST', mode:'no-cors', credentials:'include', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(f)});
       return true;            /* opaque response — optimistic (local copy kept) */
     }
     if(hasCowork()){
