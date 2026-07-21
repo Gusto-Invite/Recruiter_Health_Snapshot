@@ -980,4 +980,161 @@ const FALLBACK = {
   }
 };
 
-// ── Date math ─────────────────────────────────────────────────────────────
+// ── Date math ──────────────────────────────────────────────────────
+const today      = new Date();
+const qStart     = new Date('2026-05-01');
+const qEnd       = new Date('2026-07-31');
+const daysElapsed   = Math.max(0, Math.floor((today - qStart) / 86400000));
+const daysTotal     = Math.floor((qEnd - qStart) / 86400000) + 1;
+const daysRemaining = Math.max(0, Math.floor((qEnd - today) / 86400000));
+const pctThrough    = (daysElapsed / daysTotal * 100).toFixed(1);
+const monthsLeft    = daysRemaining / 30.0;
+
+// ── Helpers ────────────────────────────────────────────────────────
+function extractSheetContent(r) {
+  if (!r || r.isError) return '';
+  if (r.structuredContent?.content) return r.structuredContent.content;
+  const arr = Array.isArray(r.content) ? r.content : [];
+  const blk = arr.find(b => b?.type === 'text');
+  if (blk?.text) { try { return JSON.parse(blk.text)?.content || blk.text; } catch { return blk.text; } }
+  if (typeof r.content === 'string') { try { return JSON.parse(r.content)?.content || r.content; } catch { return r.content; } }
+  return '';
+}
+
+function lines(txt) {
+  return txt.split('\n').map(l => l.split('\t').map(c => c.trim())).filter(r => r.some(c => c.length));
+}
+
+function parsePipelineSnapshot(txt) {
+  const data = { weeks:[], rs:[], ia:[], ir:[], hc:[], offer:[], openJobs:[] };
+  const rows = lines(txt);
+  let headerRow = null;
+
+  // Week header cells may be text ("Week of Apr 13") OR date strings ("4/13/2026")
+  // — the latter happens when Apps Script getValues() returns Date objects which
+  //   JSON.stringify converts to ISO strings that arrayToTSV formats as M/D/YYYY
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const isDateStr = s => /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s);
+  const isWeekCell = s => s.startsWith('Week of') || isDateStr(s);
+  const toWeekLabel = s => {
+    if (s.startsWith('Week of')) return s;
+    const [m, d] = s.split('/');
+    return `Week of ${MONTHS[parseInt(m)-1]} ${parseInt(d)}`;
+  };
+
+  for (const r of rows) {
+    if (r.some(c => isWeekCell(c))) { headerRow = r; break; }
+  }
+  if (!headerRow) return null;
+
+  const weekCols = headerRow.slice(1).filter(c => isWeekCell(c));
+  data.weeks = weekCols.map(toWeekLabel);
+
+  const map = { 'Recruiter Screen':'rs', 'Initial Assessment':'ia', 'Interview Round':'ir', 'Hiring Committee':'hc', 'Offer':'offer', 'Open Jobs':'openJobs' };
+  for (const row of rows) {
+    const key = map[row[0]];
+    if (key) data[key] = weekCols.map((_, i) => { const v = parseInt(row[i+1]); return isNaN(v) ? 0 : v; });
+  }
+
+  // Trim trailing weeks with no data (future week columns show as all-zeros)
+  // Use RS as the signal — find the last week with a non-zero RS value
+  if (data.rs && data.rs.length > 0) {
+    let lastIdx = data.rs.length - 1;
+    while (lastIdx > 0 && data.rs[lastIdx] === 0) lastIdx--;
+    if (lastIdx < data.rs.length - 1) {
+      const trim = i => i ? i.slice(0, lastIdx + 1) : i;
+      data.weeks = data.weeks.slice(0, lastIdx + 1);
+      data.rs    = trim(data.rs);
+      data.ia    = trim(data.ia);
+      data.ir    = trim(data.ir);
+      data.hc    = trim(data.hc);
+      data.offer = trim(data.offer);
+      data.openJobs = trim(data.openJobs);
+    }
+  }
+
+  return data.weeks.length > 0 ? data : null;
+}
+
+// ── Projection model ───────────────────────────────────────────────
+function computeProjection(oar, rec, ppr) {
+  const baseMonthly = rec * ppr * (oar / FALLBACK.baseOAR);
+  const remaining   = Math.round(baseMonthly * monthsLeft);
+  const total       = FALLBACK.acceptedTotal + remaining;
+  const gap         = Math.max(0, FALLBACK.q1Goal - total);
+  const paceNeeded  = monthsLeft > 0 ? (FALLBACK.q1Goal - FALLBACK.acceptedTotal) / monthsLeft : 0;
+  return { baseMonthly, remaining, total, gap, paceNeeded };
+}
+
+function getMonthBreakdown(oar, rec, ppr, mult) {
+  const monthly = rec * ppr * (oar / FALLBACK.baseOAR) * mult;
+  const mayActual      = Math.round(FALLBACK.acceptedTotal * (31/40));
+  const juneActual     = FALLBACK.acceptedTotal - mayActual;
+  const juneRemaining  = Math.round(monthly * (21/30));
+  return [mayActual, juneActual + juneRemaining, Math.round(monthly)];
+}
+
+const SCENARIOS = {
+  pessimistic: { mult: 0.75, color: '#F45D48' },
+  base:        { mult: 1.00, color: '#F45D48' },
+  optimistic:  { mult: 1.35, color: '#0A8080' }
+};
+
+// ── Health score ───────────────────────────────────────────────────
+function computeHealth(oar, rec, ppr) {
+  const proj = computeProjection(oar, rec, ppr);
+  return Math.round(
+    Math.min(50, 50 * (proj.baseMonthly / proj.paceNeeded)) +
+    Math.min(30, 30 * (oar / 0.95)) +
+    Math.min(20, 20 * Math.min(1, FALLBACK.pipeline.offer.slice(-1)[0] / 8))
+  );
+}
+function healthColor(s) { return s >= 80 ? '#0A8080' : s >= 60 ? '#F5A623' : '#F45D48'; }
+function healthLabel(s) { return s >= 80 ? 'On Track' : s >= 65 ? 'At Risk' : s >= 50 ? 'Needs Attention' : 'Critical'; }
+
+Chart.defaults.color = '#7A6E65';
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+Chart.defaults.font.size = 11;
+
+// ── Gauge ──────────────────────────────────────────────────────────
+function renderGauge(score) {
+  const col = healthColor(score);
+  document.getElementById('healthValue').textContent = score;
+  document.getElementById('healthValue').style.color = col;
+  document.getElementById('healthLabel').textContent = healthLabel(score);
+  if (gaugeChart) gaugeChart.destroy();
+  gaugeChart = new Chart(document.getElementById('gaugeChart'), {
+    type: 'doughnut',
+    data: { datasets: [{ data: [score, 100-score], backgroundColor: [col,'rgba(0,0,0,0.06)'], borderWidth: 0, circumference: 180, rotation: 270 }] },
+    options: { responsive:true, maintainAspectRatio:false, cutout:'72%', plugins:{ legend:{display:false}, tooltip:{enabled:false} }, animation:{duration:600} }
+  });
+  // Screen effect — use 'team-overview' as the key so it retriggers if score changes
+  setTimeout(() => triggerHealthEffect(score, `team:${score}`, true), 400);
+}
+
+// ── Projection chart ───────────────────────────────────────────────
+function renderProjectionChart(oar, rec, ppr) {
+  const s = SCENARIOS[currentScenario];
+  const data = getMonthBreakdown(oar, rec, ppr, s.mult);
+  if (projectionChart) projectionChart.destroy();
+  projectionChart = new Chart(document.getElementById('projectionChart'), {
+    type: 'bar',
+    data: {
+      labels: ['May', 'June', 'July'],
+      datasets: [
+        { label: 'Projected FTE Hires', data, backgroundColor: ['rgba(244,93,72,0.5)','rgba(244,93,72,0.7)',s.color+'99'], borderColor: ['rgba(244,93,72,0.8)','rgba(244,93,72,0.9)',s.color], borderWidth:2, borderRadius:6 },
+        { label: 'Monthly Goal Pace', data:[18,18,18], type:'line', borderColor:'rgba(0,0,0,0.2)', borderDash:[6,4], borderWidth:2, pointRadius:0, fill:false }
+      ]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:true,position:'top',labels:{boxWidth:12,padding:12}} }, scales:{ x:{grid:{color:'rgba(0,0,0,0.05)'}}, y:{grid:{color:'rgba(0,0,0,0.05)'},beginAtZero:true,max:25,ticks:{stepSize:5}} } }
+  });
+}
+
+// ── Pipeline trend ─────────────────────────────────────────────────
+function renderTrendChart(pd) {
+  const labels = pd.weeks.map(w => w.replace('Week of ',''));
+  if (trendChart) trendChart.destroy();
+  trendChart = new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels,
