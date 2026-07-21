@@ -398,7 +398,13 @@ input[type="range"]::-webkit-slider-thumb {
 .rec-health-block { display: flex; align-items: center; gap: 10px; }
 .rec-health-score-big { font-size: 30px; font-weight: 900; line-height: 1; letter-spacing: -1px; }
 .rec-health-info { display: flex; flex-direction: column; gap: 1px; }
-.rec-health-tag { font-size: 10px; color: var(--ink-60); text-transform: uppercase; letter-spacing: .7px; font-weight: 700; }
+.rec-health-tag { font-size: 10px; color: var(--ink-60); text-transform: uppercase; letter-spacing: .7px; font-weight: 700; display: flex; align-items: center; gap: 5px; }
+.health-info-btn { width: 14px; height: 14px; border-radius: 50%; background: var(--ink-20); border: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 900; color: var(--ink-60); flex-shrink: 0; position: relative; font-style: normal; font-family: 'Nunito', sans-serif; text-transform: none; letter-spacing: 0; }
+.health-info-btn:hover { background: var(--ink); color: var(--white); }
+.health-tooltip { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: 240px; background: var(--ink); color: var(--white); border-radius: 10px; padding: 10px 12px; font-size: 11px; line-height: 1.6; font-weight: 500; text-transform: none; letter-spacing: 0; z-index: 9999; pointer-events: none; opacity: 0; transition: opacity .15s; white-space: normal; box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+.health-tooltip::after { content:''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: var(--ink); }
+.health-info-btn:hover .health-tooltip,
+.health-info-btn:focus .health-tooltip { opacity: 1; }
 .rec-health-desc-text { font-size: 12px; font-weight: 800; }
 .rec-health-divider { width: 1px; height: 36px; background: var(--ink-20); flex-shrink: 0; }
 .rec-health-note { font-size: 11px; color: var(--ink-60); line-height: 1.5; }
@@ -685,7 +691,6 @@ input[type="range"]::-webkit-slider-thumb {
       <div class="goal-bar-wrap"><div class="goal-bar" id="goalBar" style="width:0%"></div></div>
       <div class="goal-pct" id="goalPct" style="color:var(--teal)">–% confirmed</div>
       <div class="kpi-note" id="goalNote">– accepted · – more needed</div>
-      <div class="analysis-note" id="watchGoal"></div>
     </div>
     <!-- Accepted Offers -->
     <div class="kpi">
@@ -704,7 +709,6 @@ input[type="range"]::-webkit-slider-thumb {
         </div>
       </div>
       <div class="kpi-note">Q1 · excl. interns &amp; apprentices</div>
-      <div class="analysis-note" id="watchAccepted" style="margin-top:4px"></div>
     </div>
     <!-- OAR -->
     <div class="kpi" id="teamOARBlock">
@@ -718,7 +722,6 @@ input[type="range"]::-webkit-slider-thumb {
       <div class="kpi-value" id="teamOARVal" style="color:var(--teal)">–</div>
       <div class="kpi-sub">Offer Acceptance Rate</div>
       <div class="kpi-note" id="teamOARNote">– accepted / – extended</div>
-      <div class="analysis-note" id="watchOAR"></div>
     </div>
     <!-- FTE Projected -->
     <div class="kpi">
@@ -732,7 +735,6 @@ input[type="range"]::-webkit-slider-thumb {
       <div class="kpi-value" id="kpiProjected" style="color:var(--amber)">–</div>
       <div class="kpi-sub" id="kpiGapLabel">–</div>
       <div class="kpi-note" id="kpiProjectedNote">–</div>
-      <div class="analysis-note" id="watchProjected"></div>
     </div>
   </div>
 
@@ -2788,7 +2790,16 @@ function renderRecruiterView(r) {
         <div class="rec-health-block">
           <div class="rec-health-score-big" style="color:${hColor}">${health}</div>
           <div class="rec-health-info">
-            <div class="rec-health-tag">Health Score</div>
+            <div class="rec-health-tag">Health Score
+              <button class="health-info-btn" tabindex="0" aria-label="Health score methodology">i
+                <div class="health-tooltip">Weighted score (0–100):<br>
+                  <strong>50pts</strong> Projected attainment (accepted + pipeline conversion ÷ goal)<br>
+                  <strong>30pts</strong> OAR vs. 95% benchmark<br>
+                  <strong>20pts</strong> Pipeline depth (base credit)<br>
+                  <br>≥80 = On Track · 65–79 = At Risk · 50–64 = Needs Attention · &lt;50 = Critical
+                </div>
+              </button>
+            </div>
             <div class="rec-health-desc-text" style="color:${hColor}">${hLabel}</div>
           </div>
         </div>
