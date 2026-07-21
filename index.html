@@ -242,7 +242,9 @@ header {
 
 /* Chart containers */
 .chart-container { position: relative; width: 100%; }
-canvas { max-height: 240px; }
+canvas { display: block; }
+#bgCanvas { max-height: none !important; width: 100% !important; height: 100% !important; }
+.chart-container canvas { display: block; width: 100% !important; }
 
 /* ── Scenario tabs ── */
 .scenario-tabs { display: flex; gap: 5px; }
