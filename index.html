@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Q1 Predictive Hiring Dashboard</title>
+<title>Hiring at a Glance · Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=Song+Myung&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
 <style>
   :root {
@@ -334,12 +335,18 @@
       <span class="gusto-wordmark">gusto</span>
     </div>
     <div>
-      <div class="header-title">Q1 Predictive Hiring Dashboard</div>
+      <div class="header-title">Hiring at a Glance</div>
       <div class="header-sub">Engineering · May – July 2026</div>
     </div>
     <div class="status-badge">LIVE</div>
   </div>
   <div class="updated-time" id="updatedTime">Loading…</div>
+</div>
+
+<div style="padding:32px 20px 16px;max-width:1400px;margin:0 auto">
+  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#00876E;margin-bottom:10px">ENGINEERING · Q1 FY27</div>
+  <div style="font-family:'Song Myung',Georgia,serif;font-size:46px;font-weight:400;line-height:1.1;margin-bottom:6px;color:#1C1410">Hiring at a Glance</div>
+  <div style="font-size:14px;color:#7A7585">Live metrics across the Engineering org</div>
 </div>
 
 <div class="tab-nav" id="tabNav"></div>
@@ -369,7 +376,7 @@
         <span style="font-style:italic">accepted offers + pace-based remaining</span>
       </div>
     </div>
-      <div class="rec-status-metrics-5">
+      <div class="rec-status-metrics">
         <!-- Q1 Goal -->
         <div class="rec-metric-block" style="border-top:3px solid var(--accent)">
           <div class="rec-metric-label">Q1 Goal</div>
@@ -393,6 +400,14 @@
           <div class="rec-metric-note">Q1 by acceptance date · Excl. interns &amp; apprentices</div>
           <div class="analysis-note" id="watchAccepted" style="margin-top:6px"></div>
         </div>
+        <!-- OAR -->
+        <div class="rec-metric-block" id="teamOARBlock" style="border-top:3px solid var(--green)">
+          <div class="rec-metric-label">OAR</div>
+          <div class="rec-metric-value" id="teamOARVal" style="color:var(--green)">–</div>
+          <div class="rec-metric-sub">Offer Acceptance Rate</div>
+          <div class="rec-metric-note" id="teamOARNote">– accepted / – extended</div>
+          <div class="analysis-note" id="watchOAR"></div>
+        </div>
         <!-- FTE Projected -->
         <div class="rec-metric-block" style="border-top:3px solid var(--yellow)">
           <div class="rec-metric-label">FTE Projected</div>
@@ -401,24 +416,7 @@
           <div class="rec-metric-note" id="kpiProjectedNote">–</div>
           <div class="analysis-note" id="watchProjected"></div>
         </div>
-        <!-- Monthly Pace -->
-        <div class="rec-metric-block" style="border-top:3px solid var(--accent)">
-          <div class="rec-metric-label">Monthly Pace</div>
-          <div class="rec-metric-value" id="kpiPace" style="color:var(--accent)">–</div>
-          <div class="rec-metric-sub" id="kpiPaceNeeded">–</div>
-          <div class="rec-metric-note" id="kpiPaceNote">–</div>
-          <div class="analysis-note" id="watchPace"></div>
-        </div>
-        <!-- Days Remaining -->
-        <div class="rec-metric-block" style="border-top:3px solid var(--text2);border-right:none">
-          <div class="rec-metric-label">Days Remaining</div>
-          <div class="rec-metric-value" id="kpiDays" style="color:var(--text)">–</div>
-          <div class="rec-metric-sub" id="kpiDaysPct">Of Q1</div>
-          <div class="rec-metric-note" id="kpiDaysNote">–</div>
-          <div class="analysis-note" id="watchDays"></div>
-        </div>
-      </div>
-    </div>
+
 
   <!-- Scenario projection + Pipeline funnel -->
   <div class="mid-row">
@@ -1109,20 +1107,46 @@ function updateKPIs(proj) {
     }
   }
 
-  // Pace card
+  // Pace card (may be absent from team view)
   const paceRatio = Math.round(proj.baseMonthly / proj.paceNeeded * 100);
-  document.getElementById('kpiPace').textContent = proj.baseMonthly.toFixed(1) + '/mo';
-  document.getElementById('kpiPace').style.color = proj.baseMonthly >= proj.paceNeeded ? '#00B094' : proj.baseMonthly >= proj.paceNeeded * 0.8 ? '#F5A623' : '#F45D48';
-  document.getElementById('kpiPaceNeeded').textContent = `Need ${proj.paceNeeded.toFixed(1)}/mo to hit goal`;
-  document.getElementById('kpiPaceNote').textContent =
-    `${paceRatio}% of needed pace · 9 recruiters × 1.44 PPR`;
+  const kpiPaceEl = document.getElementById('kpiPace');
+  if (kpiPaceEl) {
+    kpiPaceEl.textContent = proj.baseMonthly.toFixed(1) + '/mo';
+    kpiPaceEl.style.color = proj.baseMonthly >= proj.paceNeeded ? '#00B094' : proj.baseMonthly >= proj.paceNeeded * 0.8 ? '#F5A623' : '#F45D48';
+    const kpiPaceNeeded = document.getElementById('kpiPaceNeeded');
+    if (kpiPaceNeeded) kpiPaceNeeded.textContent = `Need ${proj.paceNeeded.toFixed(1)}/mo to hit goal`;
+    const kpiPaceNote = document.getElementById('kpiPaceNote');
+    if (kpiPaceNote) kpiPaceNote.textContent = `${paceRatio}% of needed pace · 9 recruiters × 1.44 PPR`;
+  }
 
-  // Days card
+  // Days card (may be absent from team view)
   const hiresWithPipeline = started + pending;
   const remainingAfterPipeline = Math.max(0, goal - hiresWithPipeline);
-  document.getElementById('kpiDays').textContent = daysRemaining;
-  document.getElementById('kpiDaysPct').textContent = `${pctThrough}% of Q1 elapsed`;
-  document.getElementById('kpiDaysNote').textContent =
+  const kpiDaysEl = document.getElementById('kpiDays');
+  if (kpiDaysEl) {
+    kpiDaysEl.textContent = daysRemaining;
+    const kpiDaysPct = document.getElementById('kpiDaysPct');
+    if (kpiDaysPct) kpiDaysPct.textContent = `${pctThrough}% of Q1 elapsed`;
+  }
+  
+  // Team OAR
+  const teamOAREl = document.getElementById('teamOARVal');
+  const teamOARNote = document.getElementById('teamOARNote');
+  const teamOARWatch = document.getElementById('watchOAR');
+  if (teamOAREl) {
+    const ext = parseInt(document.getElementById('kpiAccepted').textContent)||0;
+    const dec = FALLBACK.oarByLevel;
+    let totalAcc=0,totalExt=0;
+    Object.values(dec).forEach(v=>{totalAcc+=v.accepted;totalExt+=v.extended;});
+    const oarPct = totalExt>0 ? Math.round(totalAcc/totalExt*100) : 0;
+    teamOAREl.textContent = oarPct+'%';
+    teamOAREl.style.color = oarPct>=90?'var(--green)':oarPct>=75?'var(--yellow)':'var(--red)';
+    if (teamOARNote) teamOARNote.textContent = totalAcc+'/'+totalExt+' offers accepted';
+    if (teamOARWatch && oarPct<75) teamOARWatch.innerHTML='<strong>⚠ Watch:</strong> OAR below 75% threshold — comp bands driving declines.';
+  }
+
+  const kpiDaysNote = document.getElementById('kpiDaysNote');
+  if (kpiDaysNote) kpiDaysNote.textContent =
     `${hiresWithPipeline} confirmed · ${remainingAfterPipeline} more needed in ${daysRemaining}d`;
 
   // ── Dynamic analysis notes ────────────────────────────────────────
@@ -1152,29 +1176,33 @@ function updateKPIs(proj) {
   }
 
   const paceW = document.getElementById('watchPace');
-  const paceRatio2 = proj.baseMonthly / proj.paceNeeded;
-  if (paceRatio2 >= 1) {
-    paceW.className = 'analysis-note ok';
-    paceW.innerHTML = '<strong>✓ Sufficient pace:</strong> Current monthly rate is enough to close the quarter on goal.';
-  } else if (paceRatio2 >= 0.8) {
-    paceW.className = 'analysis-note';
-    paceW.innerHTML = `<strong>Watch:</strong> Current pace is ${Math.round(paceRatio2*100)}% of what's needed. A modest OAR improvement or pipeline push in June could close the gap.`;
-  } else {
-    paceW.className = 'analysis-note risk';
-    paceW.innerHTML = `<strong>⚠ Below pace:</strong> Running at ${Math.round(paceRatio2*100)}% of required rate. Without acceleration, Q1 will fall short regardless of pipeline volume.`;
+  if (paceW) {
+    const paceRatio2 = proj.baseMonthly / proj.paceNeeded;
+    if (paceRatio2 >= 1) {
+      paceW.className = 'analysis-note ok';
+      paceW.innerHTML = '<strong>✓ Sufficient pace:</strong> Current monthly rate is enough to close the quarter on goal.';
+    } else if (paceRatio2 >= 0.8) {
+      paceW.className = 'analysis-note';
+      paceW.innerHTML = `<strong>Watch:</strong> Current pace is ${Math.round(paceRatio2*100)}% of what's needed. A modest OAR improvement or pipeline push in June could close the gap.`;
+    } else {
+      paceW.className = 'analysis-note risk';
+      paceW.innerHTML = `<strong>⚠ Below pace:</strong> Running at ${Math.round(paceRatio2*100)}% of required rate. Without acceleration, Q1 will fall short regardless of pipeline volume.`;
+    }
   }
 
   const daysW = document.getElementById('watchDays');
-  const impliedMonthlyNeeded = daysRemaining > 0 ? remainingAfterPipeline / (daysRemaining / 30) : 0;
-  if (remainingAfterPipeline <= 0) {
-    daysW.className = 'analysis-note ok';
-    daysW.innerHTML = '<strong>✓ Pipeline covers goal:</strong> Confirmed + pending starts are sufficient to hit 46.';
-  } else if (impliedMonthlyNeeded <= proj.baseMonthly * 1.2) {
-    daysW.className = 'analysis-note';
-    daysW.innerHTML = `<strong>Watch:</strong> Need ${remainingAfterPipeline} more hires in ${daysRemaining}d (~${impliedMonthlyNeeded.toFixed(1)}/mo). Achievable if July offer pace improves.`;
-  } else {
-    daysW.className = 'analysis-note risk';
-    daysW.innerHTML = `<strong>⚠ Urgent:</strong> Need ${remainingAfterPipeline} more hires in ${daysRemaining}d. Implied pace of ${impliedMonthlyNeeded.toFixed(1)}/mo is ${Math.round(impliedMonthlyNeeded/proj.baseMonthly*100)}% above current capacity.`;
+  if (daysW) {
+    const impliedMonthlyNeeded = daysRemaining > 0 ? remainingAfterPipeline / (daysRemaining / 30) : 0;
+    if (remainingAfterPipeline <= 0) {
+      daysW.className = 'analysis-note ok';
+      daysW.innerHTML = '<strong>✓ Pipeline covers goal:</strong> Confirmed + pending starts are sufficient to hit 46.';
+    } else if (impliedMonthlyNeeded <= proj.baseMonthly * 1.2) {
+      daysW.className = 'analysis-note';
+      daysW.innerHTML = `<strong>Watch:</strong> Need ${remainingAfterPipeline} more hires in ${daysRemaining}d (~${impliedMonthlyNeeded.toFixed(1)}/mo). Achievable if July offer pace improves.`;
+    } else {
+      daysW.className = 'analysis-note risk';
+      daysW.innerHTML = `<strong>⚠ Urgent:</strong> Need ${remainingAfterPipeline} more hires in ${daysRemaining}d. Implied pace of ${impliedMonthlyNeeded.toFixed(1)}/mo is ${Math.round(impliedMonthlyNeeded/proj.baseMonthly*100)}% above current capacity.`;
+    }
   }
 }
 
@@ -1199,9 +1227,13 @@ function updateWhatIfDisplay(oar, rec, ppr) {
   const remaining1 = proj.total - FALLBACK.hiresQ1ToDate;
   document.getElementById('teamProjBreakdown').textContent = `${FALLBACK.hiresQ1ToDate} started + ~${Math.max(0,remaining1)} projected = ${proj.total}`;
   const paceRatio = Math.round(proj.baseMonthly / proj.paceNeeded * 100);
-  document.getElementById('kpiPace').textContent = proj.baseMonthly.toFixed(1) + '/mo';
-  document.getElementById('kpiPace').style.color = proj.baseMonthly >= proj.paceNeeded ? '#00B094' : proj.baseMonthly >= proj.paceNeeded * 0.8 ? '#F5A623' : '#F45D48';
-  document.getElementById('kpiPaceNote').textContent = `${paceRatio}% of needed pace · ${rec} recruiters × ${ppr.toFixed(2)} PPR`;
+  const kpiPaceEl2 = document.getElementById('kpiPace');
+  if (kpiPaceEl2) {
+    kpiPaceEl2.textContent = proj.baseMonthly.toFixed(1) + '/mo';
+    kpiPaceEl2.style.color = proj.baseMonthly >= proj.paceNeeded ? '#00B094' : proj.baseMonthly >= proj.paceNeeded * 0.8 ? '#F5A623' : '#F45D48';
+    const kpiPaceNote2 = document.getElementById('kpiPaceNote');
+    if (kpiPaceNote2) kpiPaceNote2.textContent = `${paceRatio}% of needed pace · ${rec} recruiters × ${ppr.toFixed(2)} PPR`;
+  }
 
   if (proj.gap > 0) { document.getElementById('wiGap').textContent = '−' + proj.gap; document.getElementById('wiGap').style.color = '#F45D48'; }
   else { document.getElementById('wiGap').textContent = '+' + Math.abs(proj.gap); document.getElementById('wiGap').style.color = '#00B094'; }
