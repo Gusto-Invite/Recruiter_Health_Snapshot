@@ -186,35 +186,45 @@ header {
 .health-proj { font-size: 10px; color: var(--ink-60); text-align: right; margin-left: auto; line-height: 1.6; }
 
 /* ── KPI row — 4 cards ── */
-.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
 .kpi-card,
 .kpi {
   background: var(--white); border-radius: var(--radius);
   padding: 16px 18px; border: var(--border); box-shadow: var(--shadow);
-  display: flex; flex-direction: column; gap: 5px;
-  border-top: 3px solid transparent;
+  display: flex; flex-direction: column;
+  border-top: none;
   transition: box-shadow .15s;
 }
 .kpi-card:hover, .kpi:hover { box-shadow: 0 4px 16px rgba(17,17,17,.08); }
+
+/* Icon + sparkline header */
+.kpi-header-row { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
+.kpi-icon-circle {
+  width: 30px; height: 30px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.kpi-sparkline-svg { width: 64px; height: 26px; flex-shrink: 0; }
+
 .kpi-label,
-.kpi-grid > .kpi-card > .kpi-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--ink-60); }
-.kpi-value { font-size: 34px; font-weight: 900; line-height: 1; color: var(--ink); letter-spacing: -1.5px; }
-.kpi-sub   { font-size: 11.5px; color: var(--ink-60); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.kpi-note  { font-size: 10px; color: var(--ink-60); font-style: italic; opacity: .85; line-height: 1.4; }
-.kpi-badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 4px; }
-.badge-red    { background: rgba(217,48,37,.12);  color: var(--red); }
+.kpi-grid > .kpi-card > .kpi-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--ink-60); margin-bottom: 2px; }
+.kpi-value { font-size: 36px; font-weight: 900; line-height: 1; color: var(--ink); letter-spacing: -1.5px; margin-bottom: 5px; }
+.kpi-sub   { font-size: 11px; color: var(--ink-60); display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-bottom: 4px; }
+.kpi-note  { font-size: 10px; color: var(--ink-60); opacity: .85; line-height: 1.4; margin-bottom: 2px; }
+.kpi-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; }
+.badge-red    { background: rgba(217,48,37,.10);  color: var(--red); }
 .badge-green  { background: var(--green-lt); color: var(--teal); }
 .badge-yellow { background: var(--amber-lt); color: var(--amber); }
 .badge-blue   { background: var(--purple-lt); color: var(--purple); }
 
 /* Progress bar inside KPI */
-.goal-bar-wrap { background: var(--ink-20); border-radius: 4px; height: 5px; overflow: hidden; margin-top: 4px; }
+.goal-bar-wrap { background: var(--ink-20); border-radius: 4px; height: 4px; overflow: hidden; margin-top: 2px; margin-bottom: 4px; }
 .goal-bar { height: 100%; border-radius: 4px; transition: width .5s ease; background: var(--teal); }
-.goal-pct { font-size: 11px; font-weight: 700; margin-top: 2px; }
+.goal-pct { font-size: 11px; font-weight: 700; }
 
 /* Offer pills */
 .offers-sub { display: flex; gap: 6px; flex-wrap: wrap; }
-.offers-pill { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 700; }
+.offers-pill { font-size: 10px; padding: 2px 9px; border-radius: 20px; font-weight: 700; }
 .pill-green { background: var(--green-lt); color: var(--teal); }
 .pill-blue  { background: var(--purple-lt); color: var(--purple); }
 
@@ -634,7 +644,13 @@ input[type="range"]::-webkit-slider-thumb {
   <!-- 4 KPI cards -->
   <div class="kpi-row">
     <!-- Q1 Goal -->
-    <div class="kpi" style="border-top-color:var(--coral)">
+    <div class="kpi">
+      <div class="kpi-header-row">
+        <div class="kpi-icon-circle" style="background:rgba(244,93,72,.10)">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="#F45D48" stroke-width="1.5"/><circle cx="8" cy="8" r="3.5" stroke="#F45D48" stroke-width="1.5"/><circle cx="8" cy="8" r="1.5" fill="#F45D48"/></svg>
+        </div>
+        <svg class="kpi-sparkline-svg" viewBox="0 0 64 26" fill="none"><path d="M2 20 C14 17,26 13,38 10 C48 8,55 7,62 5" stroke="#F45D48" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="62" cy="5" r="2.5" fill="#F45D48"/></svg>
+      </div>
       <div class="kpi-label">Q1 Goal</div>
       <div class="kpi-value" id="teamGoalValue">46</div>
       <div class="kpi-sub">FTE hires by Jul 31</div>
@@ -644,7 +660,13 @@ input[type="range"]::-webkit-slider-thumb {
       <div class="analysis-note" id="watchGoal"></div>
     </div>
     <!-- Accepted Offers -->
-    <div class="kpi" style="border-top-color:var(--teal)">
+    <div class="kpi">
+      <div class="kpi-header-row">
+        <div class="kpi-icon-circle" style="background:rgba(10,128,128,.10)">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2.5 8.5 L6 12 L13.5 4.5" stroke="#0A8080" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <svg class="kpi-sparkline-svg" viewBox="0 0 64 26" fill="none"><path d="M2 6 C14 6,26 8,38 9 C48 10,55 11,62 14" stroke="#0A8080" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="62" cy="14" r="2.5" fill="#0A8080"/></svg>
+      </div>
       <div class="kpi-label">Accepted Offers</div>
       <div class="kpi-value" id="kpiAccepted" style="color:var(--teal)">–</div>
       <div class="kpi-sub" id="kpiAcceptedSub">
@@ -653,11 +675,17 @@ input[type="range"]::-webkit-slider-thumb {
           <span class="offers-pill pill-blue"  id="pillPending">–</span>
         </div>
       </div>
-      <div class="kpi-note">Q1 by acceptance date · Excl. interns &amp; apprentices</div>
-      <div class="analysis-note" id="watchAccepted" style="margin-top:6px"></div>
+      <div class="kpi-note">Q1 · excl. interns &amp; apprentices</div>
+      <div class="analysis-note" id="watchAccepted" style="margin-top:4px"></div>
     </div>
     <!-- OAR -->
-    <div class="kpi" id="teamOARBlock" style="border-top-color:var(--teal)">
+    <div class="kpi" id="teamOARBlock">
+      <div class="kpi-header-row">
+        <div class="kpi-icon-circle" style="background:rgba(10,128,128,.10)">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="5.5" r="2.5" stroke="#0A8080" stroke-width="1.5"/><circle cx="10.5" cy="10.5" r="2.5" stroke="#0A8080" stroke-width="1.5"/><path d="M3 13 L13 3" stroke="#0A8080" stroke-width="1.3" stroke-linecap="round"/></svg>
+        </div>
+        <svg class="kpi-sparkline-svg" viewBox="0 0 64 26" fill="none"><path d="M2 5 C12 7,22 10,32 13 C42 16,52 19,62 21" stroke="#D97706" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="62" cy="21" r="2.5" fill="#D97706"/></svg>
+      </div>
       <div class="kpi-label">OAR</div>
       <div class="kpi-value" id="teamOARVal" style="color:var(--teal)">–</div>
       <div class="kpi-sub">Offer Acceptance Rate</div>
@@ -665,7 +693,13 @@ input[type="range"]::-webkit-slider-thumb {
       <div class="analysis-note" id="watchOAR"></div>
     </div>
     <!-- FTE Projected -->
-    <div class="kpi" style="border-top-color:var(--amber)">
+    <div class="kpi">
+      <div class="kpi-header-row">
+        <div class="kpi-icon-circle" style="background:rgba(217,119,6,.10)">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="10" rx="2" stroke="#D97706" stroke-width="1.5"/><path d="M5 4 L5 2 M11 4 L11 2" stroke="#D97706" stroke-width="1.5" stroke-linecap="round"/><path d="M5 9 L7.5 7 L10 9 L13 7" stroke="#D97706" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <svg class="kpi-sparkline-svg" viewBox="0 0 64 26" fill="none"><path d="M2 22 C12 18,22 13,32 10 C42 8,52 8,62 8" stroke="#D97706" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="62" cy="8" r="2.5" fill="#D97706"/></svg>
+      </div>
       <div class="kpi-label">FTE Projected</div>
       <div class="kpi-value" id="kpiProjected" style="color:var(--amber)">–</div>
       <div class="kpi-sub" id="kpiGapLabel">–</div>
