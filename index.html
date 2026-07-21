@@ -1138,3 +1138,663 @@ function renderTrendChart(pd) {
     type: 'line',
     data: {
       labels,
+      datasets: [
+        { label:'Recruiter Screen', data:pd.rs, borderColor:'#F45D48', borderWidth:2, pointRadius:3, fill:false, yAxisID:'yLeft' },
+        { label:'Initial Assessment', data:pd.ia, borderColor:'#3B9999', borderWidth:2, pointRadius:3, fill:false, yAxisID:'yRight' },
+        { label:'Interview Round', data:pd.ir, borderColor:'#F5A623', borderWidth:2, pointRadius:3, fill:false, yAxisID:'yRight' },
+        { label:'Hiring Committee', data:pd.hc, borderColor:'#0A8080', borderWidth:2, pointRadius:3, fill:false, yAxisID:'yRight' },
+        { label:'Offer', data:pd.offer, borderColor:'#F45D48', borderWidth:2.5, pointRadius:4, fill:false, yAxisID:'yRight' }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:true,position:'top',labels:{boxWidth:12,padding:12}}},
+      scales:{
+        yLeft: { position:'left', grid:{color:'rgba(0,0,0,0.05)'}, title:{display:true,text:'Recruiter Screen',color:'#F45D48',font:{size:10}} },
+        yRight: { position:'right', grid:{display:false}, beginAtZero:true, title:{display:true,text:'All Other Stages',color:'#8b95b0',font:{size:10}} },
+        x: { grid:{color:'rgba(0,0,0,0.05)'} }
+      }
+    }
+  });
+}
+
+// ── Funnel ───────────────────────────────────────────────────────
+function renderFunnel(pd) {
+  if (!pd || !pd.rs || !pd.rs.length) { console.warn('[Funnel] bad data, skipping'); return; }
+  const latest = { rs:pd.rs.slice(-1)[0], ia:pd.ia.slice(-1)[0], ir:pd.ir.slice(-1)[0], hc:pd.hc.slice(-1)[0], offer:pd.offer.slice(-1)[0] };
+  const stages = [
+    { name:'Recruiter Screen',   val:latest.rs,    color:'#F45D48' },
+    { name:'Initial Assessment', val:latest.ia,    color:'#3B9999' },
+    { name:'Interview Round',    val:latest.ir,    color:'#F5A623' },
+    { name:'Hiring Committee',   val:latest.hc,    color:'#0A8080' },
+    { name:'Offer',              val:latest.offer, color:'#F45D48' }
+  ];
+  const maxVal = Math.max(latest.rs || 1, 1);
+  let html = '';
+  stages.forEach((s, i) => {
+    const barPct = Math.max(3, (s.val / maxVal) * 100);
+    if (i > 0) {
+      const prev = stages[i-1].val;
+      const rate = prev > 0 ? ((s.val / prev) * 100).toFixed(0) : '—';
+      html += `<div class="funnel-arrow">↓ ${rate}% conversion</div>`;
+    }
+    html += `<div class="funnel-row"><div class="funnel-label">${s.name}</div><div class="funnel-bar-wrap"><div class="funnel-bar" style="width:${barPct}%;background:${s.color}">${s.val}</div></div><div class="funnel-rate">${s.val}</div></div>`;
+  });
+  document.getElementById('funnelContainer').innerHTML = html;
+  // Date from the latest week column header, or today if not available
+  const latestWeek = pd.weeks && pd.weeks.length > 0 ? pd.weeks.slice(-1)[0] : null;
+  const dateLabel = latestWeek ? latestWeek.replace('Week of ', '') : new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  document.getElementById('funnelDate').textContent = `as of ${dateLabel}`;
+
+  // ── Dynamic bottleneck note ─────────────────────────────
+  const funnelNote = document.getElementById('funnelBottleneckNote');
+  if (funnelNote) {
+    const proj = computeProjection(FALLBACK.baseOAR, FALLBACK.baseRecruiterCount, FALLBACK.basePPR);
+    const paceNeeded = proj.paceNeeded;
+    const offerCount = latest.offer;
+    const irCount    = latest.ir;
+    const hcCount    = latest.hc;
+
+    if (offerCount >= paceNeeded * 0.8 && irCount >= 20) {
+      funnelNote.style.display = 'block';
+      funnelNote.className = 'analysis-note ok';
+      funnelNote.innerHTML = `<strong>✓ Pipeline healthy:</strong> ${offerCount} active offers and ${irCount} in IR support the ${paceNeeded.toFixed(1)}/mo pace needed to hit goal.`;
+    } else if (offerCount < paceNeeded * 0.5) {
+      funnelNote.style.display = 'block';
+      funnelNote.className = 'analysis-note risk';
+      funnelNote.innerHTML = `<strong>⚠ Bottleneck:</strong> Only ${offerCount} active offers against a goal requiring ~${paceNeeded.toFixed(1)}/mo. IR pool (${irCount}) ${irCount < 25 ? 'is low' : 'needs to convert'} — July volume depends on accelerating late-stage pipeline now.`;
+    } else {
+      funnelNote.style.display = 'block';
+      funnelNote.className = 'analysis-note';
+      funnelNote.innerHTML = `<strong>Watch:</strong> ${offerCount} active offers and ${irCount} in IR. Need ~${paceNeeded.toFixed(1)}/mo — monitor offer conversion through July.`;
+    }
+  }
+
+  // Pipeline trend note (above funnel chart, in trend section)
+  const trendNote = document.getElementById('pipelineTrendNote');
+  if (trendNote && pd.ir.length >= 2) {
+    const irFirst = pd.ir[0];
+    const irLast  = pd.ir[pd.ir.length - 1];
+    const irDrop  = irFirst > 0 ? Math.round((irFirst - irLast) / irFirst * 100) : 0;
+    const hcLast  = pd.hc[pd.hc.length - 1];
+    const hcMin   = Math.min(...pd.hc);
+    const weeks   = pd.ir.length - 1;
+
+    if (irDrop >= 30) {
+      trendNote.style.display = 'block';
+      trendNote.className = 'analysis-note risk';
+      trendNote.innerHTML = `<strong>⚠ Watch:</strong> Interview Round dropped ${irDrop}% over ${weeks} weeks (${irFirst} → ${irLast}), directly compressing the offer stage. HC is at a ${weeks}-week low of ${hcLast}. Both trends need to reverse to generate sufficient offer volume.`;
+    } else if (irDrop >= 10) {
+      trendNote.style.display = 'block';
+      trendNote.className = 'analysis-note';
+      trendNote.innerHTML = `<strong>Watch:</strong> Interview Round down ${irDrop}% over ${weeks} weeks (${irFirst} → ${irLast}). HC at ${hcLast} — monitor conversion into offer stage.`;
+    } else {
+      trendNote.style.display = 'block';
+      trendNote.className = 'analysis-note ok';
+      trendNote.innerHTML = `<strong>✓ IR stable:</strong> Interview Round at ${irLast} over ${weeks} weeks — pipeline feeding offer stage is healthy.`;
+    }
+  }
+}
+
+// ── Historical chart ───────────────────────────────────────────────
+// Stored live quarterly history once loaded
+let _liveHistData = null;
+
+// Gusto fiscal quarter: Q1=May-Jul, Q2=Aug-Oct, Q3=Nov-Jan, Q4=Feb-Apr
+function getFQLabel(mo, yr) {
+  if (mo >= 5 && mo <= 7)  return `Q1 FY${(yr + 1) - 2000}`;
+  if (mo >= 8 && mo <= 10) return `Q2 FY${(yr + 1) - 2000}`;
+  if (mo >= 11)            return `Q3 FY${(yr + 1) - 2000}`;
+  if (mo === 1)            return `Q3 FY${yr - 2000}`;
+  if (mo >= 2 && mo <= 4)  return `Q4 FY${yr - 2000}`;
+  return null;
+}
+
+// Ordered list of completed history quarters to show
+const HISTORY_QUARTERS = ['Q1 FY26','Q2 FY26','Q3 FY26','Q4 FY26'];
+
+function renderHistChart(projected, liveHist) {
+  if (liveHist) _liveHistData = liveHist;
+  const hd = _liveHistData;
+  const histLabels   = hd ? hd.labels    : ['Q2 FY26','Q3 FY26','Q4 FY26'];
+  const histAccepted = hd ? hd.accepted  : [72, 41, 76];
+  const histExtended = hd ? hd.extended  : [91, 53, 91];
+  const nullPad      = histLabels.map(() => null);
+
+  if (histChart) histChart.destroy();
+  histChart = new Chart(document.getElementById('histChart'), {
+    type: 'bar',
+    data: {
+      labels: [...histLabels, 'Q1 FY27 (Current)'],
+      datasets: [
+        { label:'Accepted',          data:[...histAccepted, null],     backgroundColor:'rgba(244,93,72,0.6)',   borderColor:'#F45D48',              borderWidth:2, borderRadius:6 },
+        { label:'Extended',          data:[...histExtended, null],     backgroundColor:'rgba(244,93,72,0.15)',  borderColor:'rgba(244,93,72,0.4)',   borderWidth:1, borderRadius:6 },
+        { label:'Projected Accepted',data:[...nullPad, projected],     backgroundColor:'rgba(245,166,35,0.4)', borderColor:'#F5A623',              borderWidth:2, borderRadius:6 },
+        { label:'Goal (46)',         data:[...nullPad, FALLBACK.q1Goal], type:'line', borderColor:'rgba(0,0,0,0.2)', borderDash:[6,4], borderWidth:2, pointRadius:0, fill:false }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:true,position:'top',labels:{boxWidth:12,padding:12}},
+        tooltip:{ callbacks:{ footer: (items) => {
+          const i = items[0]; const qi = i.dataIndex;
+          if (qi < histLabels.length && hd) {
+            const acc = hd.accepted[qi], ext = hd.extended[qi];
+            const oar = ext > 0 ? Math.round(acc/ext*100) : 0;
+            return `OAR: ${oar}% (${acc}/${ext}) · Engineering only`;
+          }
+          return hd ? 'Live · Engineering Invite team' : 'Hardcoded fallback';
+        }}}
+      },
+      scales:{ x:{grid:{color:'rgba(0,0,0,0.05)'}}, y:{grid:{color:'rgba(0,0,0,0.05)'},beginAtZero:true,ticks:{stepSize:20}} }
+    }
+  });
+
+  // Update analysis note
+  if (hd && hd.labels.length >= 2) {
+    const lastHist  = hd.accepted[hd.labels.length - 1];
+    const prevHist  = hd.accepted[hd.labels.length - 2];
+    const lastLabel = hd.labels[hd.labels.length - 1];
+    const lastExt   = hd.extended[hd.labels.length - 1];
+    const lastOAR   = lastExt > 0 ? Math.round(lastHist/lastExt*100) : '–';
+    const prevOAR   = hd.extended[hd.labels.length-2] > 0 ? Math.round(prevHist/hd.extended[hd.labels.length-2]*100) : '–';
+    const trend     = lastHist > prevHist ? '↑' : lastHist < prevHist ? '↓' : '→';
+    const note      = document.querySelector('#histChart')?.closest('.card')?.querySelector('.analysis-note');
+    if (note) note.innerHTML = `<strong>🟢 Live · Engineering only:</strong> ${lastLabel} saw ${lastHist} accepted of ${lastExt} extended (${lastOAR}% OAR). ${trend} vs prior quarter (${prevHist} accepted, ${prevOAR}% OAR). Q1 FY27 projected: ${projected}.`;
+  }
+}
+
+// ── Decline reasons ───────────────────────────────────────────────
+function renderDeclineSection() {
+  const l4 = FALLBACK.declineReasons.L4;
+  const maxCount = l4.reasons[0][1];
+  const reasonColors = {
+    'Cash Compensation':     '#F45D48',
+    'Equity Compensation':   '#e67e22',
+    'Role Misalignment':     '#3B9999',
+    'Duplicate Application': '#3d4f7a',
+    'Moving to headcount req': '#3d4f7a',
+    'Timeline Misalignment': '#0A8080',
+    "Gusto's Product/Industry": '#F5A623',
+    'Other':                 '#4a5568'
+  };
+
+  // L4 horizontal bars
+  let html = '';
+  l4.reasons.forEach(([reason, count]) => {
+    const pct = (count / l4.total * 100).toFixed(0);
+    const barW = (count / maxCount * 100).toFixed(0);
+    const col = reasonColors[reason] || '#4a5568';
+    html += `
+      <div class="decline-bar-row">
+        <div class="decline-label">${reason}</div>
+        <div class="decline-bar-wrap">
+          <div class="decline-bar" style="width:${barW}%;background:${col}">${pct}%</div>
+        </div>
+        <div class="decline-count" style="color:${col}">${count}</div>
+      </div>`;
+  });
+  document.getElementById('l4DeclineContainer').innerHTML = html;
+
+  // L4 decline insight callout
+  const insightEl = document.getElementById('l4DeclineInsight');
+  if (insightEl && l4.total > 0) {
+    const compReasons = l4.reasons.filter(([r]) => /comp/i.test(r));
+    const compTotal = compReasons.reduce((s, [, c]) => s + c, 0);
+    const compPct = Math.round(compTotal / l4.total * 100);
+    const topParts = l4.reasons.map(([r, c]) => `${r} accounts for ${Math.round(c/l4.total*100)}% (${c} of ${l4.total})`).join('; ');
+    if (compPct === 100) {
+      insightEl.innerHTML = `<strong>⚠️ ${compPct}% of Q1 L4 declines are compensation-related.</strong> ${topParts}. No other decline reasons in Q1 — this is entirely a comp pricing issue.`;
+    } else if (compPct >= 75) {
+      insightEl.innerHTML = `<strong>⚠️ ${compPct}% of Q1 L4 declines are compensation-related.</strong> ${topParts}.`;
+    } else {
+      insightEl.innerHTML = `<strong>Q1 L4 decline mix:</strong> ${topParts}.`;
+    }
+  } else if (insightEl) {
+    insightEl.innerHTML = '<em>No L4 declines recorded in Q1.</em>';
+  }
+
+  // Cross-level decline pattern note
+  const patternEl = document.getElementById('declinePatternNote');
+  if (patternEl) {
+    const levels100 = Object.entries(FALLBACK.oarByLevel)
+      .filter(([, d]) => d.oar === 100 && d.extended > 0)
+      .map(([lvl]) => lvl);
+    const highDeclineLvls = Object.entries(FALLBACK.declineReasons)
+      .filter(([, d]) => d.total >= 3)
+      .map(([lvl, d]) => `${lvl} (${d.total})`);
+    const l4Total = (FALLBACK.declineReasons.L4 || {}).total || 0;
+    const isConcentrated = highDeclineLvls.length === 1 && highDeclineLvls[0].startsWith('L4');
+    if (isConcentrated) {
+      patternEl.innerHTML = `<strong>Pattern:</strong> L4 is the only level with meaningful Q1 decline volume (${l4Total}). ${levels100.join(' and ')} ${levels100.length > 1 ? 'are' : 'is'} accepting at 100%. The problem is concentrated at Staff level and is entirely comp-driven — no fit, timeline, or competing offer signals elsewhere.`;
+    } else if (highDeclineLvls.length > 0) {
+      patternEl.innerHTML = `<strong>Pattern:</strong> Decline volume concentrated at ${highDeclineLvls.join(', ')}. ${levels100.length > 0 ? `${levels100.join(', ')} accepting at 100%.` : ''}`;
+    } else {
+      patternEl.innerHTML = `<strong>Pattern:</strong> No significant decline volume across levels — OAR healthy across the board.`;
+    }
+  }
+
+  // Cross-level comparison grouped bar chart
+  const levels = ['L1','L3','L4','L5'];
+  const topReasons = ['Cash Compensation','Equity Compensation'];
+  const palette = ['#F45D48','#e67e22'];
+
+  const datasets = topReasons.map((reason, ri) => ({
+    label: reason,
+    data: levels.map(lvl => {
+      const d = FALLBACK.declineReasons[lvl];
+      if (!d) return 0;
+      const found = d.reasons.find(([r]) => r === reason);
+      return found ? found[1] : 0;
+    }),
+    backgroundColor: palette[ri] + 'cc',
+    borderColor: palette[ri],
+    borderWidth: 1,
+    borderRadius: 4
+  }));
+
+  if (declineCompChart) declineCompChart.destroy();
+  declineCompChart = new Chart(document.getElementById('declineCompChart'), {
+    type: 'bar',
+    data: { labels: levels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { boxWidth: 11, padding: 10, font: { size: 10 } } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}` } }
+      },
+      scales: {
+        x: { stacked: false, grid: { color: 'rgba(0,0,0,0.05)' } },
+        y: { stacked: false, grid: { color: 'rgba(0,0,0,0.05)' }, beginAtZero: true, ticks: { stepSize: 5 } }
+      }
+    }
+  });
+}
+
+// ── OAR by level ─────────────────────────────────────────────────
+function renderOARByLevel() {
+  let html = '';
+  Object.entries(FALLBACK.oarByLevel).forEach(([lvl, d]) => {
+    const col = d.oar >= 85 ? '#0A8080' : d.oar >= 75 ? '#F5A623' : '#F45D48';
+    const rejected = d.extended - d.accepted;
+    html += `
+      <div class="oar-item">
+        <div class="oar-item-label">${lvl}</div>
+        <div class="oar-item-bar-wrap">
+          <div class="oar-item-bar" style="width:${d.oar}%;background:${col}">${d.oar}%</div>
+        </div>
+        <div class="oar-item-val" style="color:${col}">${d.oar}%</div>
+        <div style="font-size:10px;color:var(--text2);white-space:nowrap;flex-shrink:0;width:80px;text-align:right">${d.accepted}/${d.extended} <span style="color:#F45D48">(−${rejected})</span></div>
+      </div>`;
+  });
+  document.getElementById('oarByLevel').innerHTML = html;
+
+  // L4 OAR analysis note
+  const l4 = FALLBACK.oarByLevel.L4 || {};
+  const l4Oar = l4.oar || 0;
+  const l4Declines = (l4.extended || 0) - (l4.accepted || 0);
+  const l4Note = document.getElementById('l4OarNote');
+  const l4Sub  = document.getElementById('l4DeclineSub');
+  if (l4Note) {
+    if (l4Oar < 70) {
+      l4Note.style.display = 'block';
+      l4Note.className = 'analysis-note risk';
+      l4Note.innerHTML = `<strong>⚠ Critical — L4:</strong> ${l4Oar}% OAR means nearly half of Staff-level offers are being lost, exclusively to comp. Each declined L4 offer costs ~2–3 months of sourcing time. Addressing comp bands for L4 is the single highest-leverage intervention available.`;
+    } else if (l4Oar < 85) {
+      l4Note.style.display = 'block';
+      l4Note.className = 'analysis-note';
+      l4Note.innerHTML = `<strong>Watch — L4:</strong> ${l4Oar}% OAR is below the ${Math.round(FALLBACK.baseOAR * 100)}% team average. Monitor comp competitiveness for Staff-level offers.`;
+    } else {
+      l4Note.style.display = 'none';
+    }
+  }
+  if (l4Sub) {
+    l4Sub.textContent = `Q1 · ${l4Declines} total decline${l4Declines !== 1 ? 's' : ''} · OAR ${l4Oar}%`;
+  }
+}
+
+// ── Risk flags ────────────────────────────────────────────────────
+function renderRisks(proj) {
+  const gap = proj.gap;
+  const goal = FALLBACK.q1Goal;
+  const l4OAR = FALLBACK.oarByLevel.L4.oar;
+  const offerCount = FALLBACK.pipeline.offer.slice(-1)[0];
+  const latestIR = FALLBACK.pipeline.ir.slice(-1)[0];
+  const risks = [
+    {
+      level: gap >= 15 ? 'risk-high' : gap >= 8 ? 'risk-mid' : 'risk-low',
+      icon: gap >= 15 ? '🔴' : gap >= 8 ? '🟡' : '🟢',
+      svgIcon: gap > 0
+        ? `<svg width='20' height='20' style='color:${gap >= 15 ? '#F45D48' : '#F5A623'}'><use href='#gi-chart'/></svg>`
+        : `<svg width='20' height='20' style='color:#0A8080'><use href='#gi-check'/></svg>`,
+      title: gap > 0 ? `${gap}-Hire FTE Gap to Goal` : 'FTE Goal Within Reach',
+      desc: gap > 0
+        ? `At current FTE pace (${proj.baseMonthly.toFixed(1)}/mo), Q1 projects to ~${proj.total} vs goal of ${goal}. Need ${proj.paceNeeded.toFixed(1)}/mo.`
+        : `Projected to meet or exceed the ${goal}-hire Q1 FTE goal.`
+    },
+    {
+      level: l4OAR < 70 ? 'risk-high' : 'risk-mid',
+      icon: l4OAR < 70 ? '🔴' : '🟡', svgIcon: `<svg width='20' height='20' style='color:${l4OAR < 70 ? '#F45D48' : '#C47A0A'}'><use href='#gi-handshake'/></svg>`,
+      title: `L4 OAR at ${l4OAR}%`,
+      desc: `L4 (Staff) offers declining at ${l4OAR}% acceptance vs ${Math.round(FALLBACK.baseOAR * 100)}% average. Compensation or competing offers driving rejections.`
+    },
+    {
+      level: offerCount < 6 ? 'risk-high' : offerCount < 10 ? 'risk-mid' : 'risk-low',
+      icon: offerCount < 6 ? '🔴' : '🟡', svgIcon: `<svg width='20' height='20' style='color:${offerCount < 6 ? '#F45D48' : '#C47A0A'}'><use href='#gi-warning'/></svg>`,
+      title: `${offerCount} Active Offers in Pipeline`,
+      desc: `${offerCount} in Offer stage. IR pipeline (${latestIR}) feeding offer stage — these are the most likely near-term accepts.`
+    }
+  ];
+  document.getElementById('risksContainer').innerHTML = risks.map(r =>
+    `<div class="risk-card ${r.level}"><div class="risk-icon">${r.svgIcon}</div><div><div class="risk-title">${r.title}</div><div class="risk-desc">${r.desc}</div></div></div>`
+  ).join('');
+}
+
+// ── Update KPIs ─────────────────────────────────────────────────
+function updateKPIs(proj) {
+  const goal = FALLBACK.q1Goal;
+  const accepted = FALLBACK.acceptedTotal;
+
+  // ── Team status card header ─────────────────────────────
+  document.getElementById('teamDaysHeader').textContent = daysRemaining;
+  document.getElementById('teamPctHeader').textContent = pctThrough;
+  const stillLeft0 = Math.max(0, goal - accepted);
+  document.getElementById('teamGoalSummary').textContent =
+    stillLeft0 === 0 ? `✓ Goal covered by accepted offers` : `${accepted} accepted · ${stillLeft0} more needed by Jul 31`;
+  const remaining0 = proj.total - accepted;
+  document.getElementById('teamProjBreakdown').textContent = `${accepted} accepted + ~${Math.max(0,remaining0)} projected = ${proj.total}`;
+
+  // Goal card — progress bar
+  const confirmedPct = Math.round(accepted / goal * 100);
+  const barColor = confirmedPct >= 90 ? '#0A8080' : confirmedPct >= 60 ? '#F5A623' : '#F45D48';
+  document.getElementById('goalBar').style.width = Math.min(100, confirmedPct) + '%';
+  document.getElementById('goalBar').style.background = barColor;
+  document.getElementById('goalPct').textContent = confirmedPct + '% of goal accepted in Q1';
+  document.getElementById('goalPct').style.color = barColor;
+  const stillNeeded = Math.max(0, goal - accepted);
+  document.getElementById('goalNote').textContent = `${accepted} accepted in Q1 · ${stillNeeded} more needed by Jul 31`;
+
+  // Projected card
+  const projPct = Math.round(proj.total / goal * 100);
+  const projColor = proj.total >= goal ? '#0A8080' : proj.total >= Math.round(goal * 0.9) ? '#F5A623' : '#F45D48';
+  document.getElementById('kpiProjected').textContent = proj.total;
+  document.getElementById('kpiProjected').style.color = projColor;
+  document.getElementById('kpiGapLabel').innerHTML = proj.gap > 0
+    ? `<span class="kpi-badge badge-red">−${proj.gap} FTE vs goal</span>`
+    : `<span class="kpi-badge badge-green">On target</span>`;
+  document.getElementById('kpiProjectedNote').textContent =
+    `${projPct}% to goal · ${proj.gap > 0 ? `${proj.gap} hire${proj.gap > 1 ? 's' : ''} short at current pace` : 'Goal within reach at base pace'}`;
+
+  // Accepted pace insight (dynamic — only show once live data is available)
+  const watchAcc = document.getElementById('watchAccepted');
+  if (watchAcc && accepted > 0 && FALLBACK.acceptedMay > 0) {
+    const junCount = FALLBACK.acceptedJun;
+    const mayCount = FALLBACK.acceptedMay;
+    if (junCount > 0 && mayCount > 0) {
+      const pctDiff = Math.round((junCount - mayCount) / mayCount * 100);
+      if (pctDiff < -30) {
+        watchAcc.className = 'analysis-note risk';
+        watchAcc.innerHTML = `<strong>⚠ Watch:</strong> Jun pace (${junCount}) is ${Math.abs(pctDiff)}% below May (${mayCount}). Confirm timing lag vs. slowdown.`;
+      } else if (pctDiff > 20) {
+        watchAcc.className = 'analysis-note ok';
+        watchAcc.innerHTML = `<strong>✓ Accelerating:</strong> Jun (${junCount}) is ahead of May (${mayCount}) pace.`;
+      } else {
+        watchAcc.className = 'analysis-note';
+        watchAcc.innerHTML = `May: ${mayCount} · Jun: ${junCount} · pace consistent`;
+      }
+    }
+  }
+
+  // Pace card
+  const paceRatio = Math.round(proj.baseMonthly / proj.paceNeeded * 100);
+  document.getElementById('kpiPace').textContent = proj.baseMonthly.toFixed(1) + '/mo';
+  document.getElementById('kpiPace').style.color = proj.baseMonthly >= proj.paceNeeded ? '#0A8080' : proj.baseMonthly >= proj.paceNeeded * 0.8 ? '#F5A623' : '#F45D48';
+  document.getElementById('kpiPaceNeeded').textContent = `Need ${proj.paceNeeded.toFixed(1)}/mo to hit goal`;
+  document.getElementById('kpiPaceNote').textContent =
+    `${paceRatio}% of needed pace · ${FALLBACK.baseRecruiterCount} recruiters × ${FALLBACK.basePPR} PPR`;
+
+  // Days card
+  const remainingAfterPipeline = Math.max(0, goal - accepted);
+  document.getElementById('kpiDays').textContent = daysRemaining;
+  document.getElementById('kpiDaysPct').textContent = `${pctThrough}% of Q1 elapsed`;
+  document.getElementById('kpiDaysNote').textContent =
+    `${accepted} accepted · ${remainingAfterPipeline} more needed in ${daysRemaining}d`;
+
+  // ── Dynamic analysis notes ───────────────────────────
+  const goalW = document.getElementById('watchGoal');
+  const stillLeft = Math.max(0, goal - accepted);
+  if (stillLeft === 0) {
+    goalW.className = 'analysis-note ok';
+    goalW.innerHTML = '<strong>✓ On track:</strong> Goal is covered by accepted offers.';
+  } else if (accepted / goal >= 0.6) {
+    goalW.className = 'analysis-note';
+    goalW.innerHTML = `<strong>Watch:</strong> ${stillLeft} more offers need to be accepted before Jul 31 to hit goal. Focus on converting active pipeline to offers in June.`;
+  } else {
+    goalW.className = 'analysis-note risk';
+    goalW.innerHTML = `<strong>⚠ At risk:</strong> Only ${Math.round(accepted/goal*100)}% of goal confirmed. Requires ${stillLeft} more accepts in ${daysRemaining} days — a significant acceleration from current pace.`;
+  }
+
+  const projW = document.getElementById('watchProjected');
+  if (proj.gap <= 0) {
+    projW.className = 'analysis-note ok';
+    projW.innerHTML = '<strong>✓ On pace:</strong> Base projection meets or exceeds goal at current recruiter count and OAR.';
+  } else if (proj.gap <= 5) {
+    projW.className = 'analysis-note';
+    projW.innerHTML = `<strong>Watch:</strong> ${proj.gap}-hire gap is closable — improving OAR by ~5pp or adding one recruiter brings projection to goal.`;
+  } else {
+    projW.className = 'analysis-note risk';
+    projW.innerHTML = `<strong>⚠ At risk:</strong> ${proj.gap}-hire gap requires meaningful intervention. Use the what-if sliders below to model scenarios.`;
+  }
+
+  const paceW = document.getElementById('watchPace');
+  const paceRatio2 = proj.baseMonthly / proj.paceNeeded;
+  if (paceRatio2 >= 1) {
+    paceW.className = 'analysis-note ok';
+    paceW.innerHTML = '<strong>✓ Sufficient pace:</strong> Current monthly rate is enough to close the quarter on goal.';
+  } else if (paceRatio2 >= 0.8) {
+    paceW.className = 'analysis-note';
+    paceW.innerHTML = `<strong>Watch:</strong> Current pace is ${Math.round(paceRatio2*100)}% of what's needed. A modest OAR improvement or pipeline push in June could close the gap.`;
+  } else {
+    paceW.className = 'analysis-note risk';
+    paceW.innerHTML = `<strong>⚠ Below pace:</strong> Running at ${Math.round(paceRatio2*100)}% of required rate. Without acceleration, Q1 will fall short regardless of pipeline volume.`;
+  }
+
+  const daysW = document.getElementById('watchDays');
+  const impliedMonthlyNeeded = daysRemaining > 0 ? remainingAfterPipeline / (daysRemaining / 30) : 0;
+  if (remainingAfterPipeline <= 0) {
+    daysW.className = 'analysis-note ok';
+    daysW.innerHTML = `<strong>✓ Accepted offers cover goal:</strong> ${accepted} accepted in Q1 — goal of ${goal} is met.`;
+  } else if (impliedMonthlyNeeded <= proj.baseMonthly * 1.2) {
+    daysW.className = 'analysis-note';
+    daysW.innerHTML = `<strong>Watch:</strong> Need ${remainingAfterPipeline} more hires in ${daysRemaining}d (~${impliedMonthlyNeeded.toFixed(1)}/mo). Achievable if July offer pace improves.`;
+  } else {
+    daysW.className = 'analysis-note risk';
+    daysW.innerHTML = `<strong>⚠ Urgent:</strong> Need ${remainingAfterPipeline} more hires in ${daysRemaining}d. Implied pace of ${impliedMonthlyNeeded.toFixed(1)}/mo is ${Math.round(impliedMonthlyNeeded/proj.baseMonthly*100)}% above current capacity.`;
+  }
+
+  // ── Projection chart risk note (below the chart) ─────────────
+  const projNote = document.getElementById('projectionRiskNote');
+  if (projNote) {
+    const gap = proj.gap;
+    if (gap <= 0) {
+      projNote.style.display = 'block';
+      projNote.className = 'analysis-note ok';
+      projNote.innerHTML = `<strong>✓ On track:</strong> Base scenario projects ~${proj.total} FTE — goal of ${goal} is within reach at current pace of ${proj.baseMonthly.toFixed(1)}/mo.`;
+    } else if (gap <= 5) {
+      projNote.style.display = 'block';
+      projNote.className = 'analysis-note';
+      projNote.innerHTML = `<strong>Watch:</strong> Base scenario projects ~${proj.total} FTE — a ${gap}-hire gap to goal. Achievable with a modest July offer acceleration to ${proj.paceNeeded.toFixed(1)}/mo.`;
+    } else {
+      projNote.style.display = 'block';
+      projNote.className = 'analysis-note risk';
+      projNote.innerHTML = `<strong>⚠ Risk:</strong> Base scenario projects ~${proj.total} FTE — a ${gap}-hire gap to goal of ${goal}. Closing the gap requires accelerating July offer volume to ${proj.paceNeeded.toFixed(1)}/mo.`;
+    }
+  }
+}
+
+// ── What-if display ───────────────────────────────────────────────
+function updateWhatIfDisplay(oar, rec, ppr) {
+  const proj = computeProjection(oar, rec, ppr);
+  const goal = FALLBACK.q1Goal;
+  const projPct = Math.round(proj.total / goal * 100);
+  const projColor = proj.total >= goal ? '#0A8080' : proj.total >= 44 ? '#F5A623' : '#F45D48';
+
+  document.getElementById('wiMonthlyPace').textContent = proj.baseMonthly.toFixed(1) + '/mo';
+  document.getElementById('wiMonthlyPace').style.color = proj.baseMonthly >= proj.paceNeeded ? '#0A8080' : proj.baseMonthly >= proj.paceNeeded * 0.8 ? '#F5A623' : '#F45D48';
+  document.getElementById('wiHiresRemaining').textContent = proj.remaining;
+  document.getElementById('wiTotal').textContent = proj.total;
+  document.getElementById('wiTotal').style.color = projColor;
+
+  // Also update projected KPI + breakdown live
+  document.getElementById('kpiProjected').textContent = proj.total;
+  document.getElementById('kpiProjected').style.color = projColor;
+  document.getElementById('kpiProjectedNote').textContent =
+    `${projPct}% to goal · ${proj.gap > 0 ? `${proj.gap} hire${proj.gap > 1 ? 's' : ''} short at current pace` : 'Goal within reach'}`;
+  const remaining1 = proj.total - FALLBACK.acceptedTotal;
+  document.getElementById('teamProjBreakdown').textContent = `${FALLBACK.acceptedTotal} accepted + ~${Math.max(0,remaining1)} projected = ${proj.total}`;
+  const paceRatio = Math.round(proj.baseMonthly / proj.paceNeeded * 100);
+  document.getElementById('kpiPace').textContent = proj.baseMonthly.toFixed(1) + '/mo';
+  document.getElementById('kpiPace').style.color = proj.baseMonthly >= proj.paceNeeded ? '#0A8080' : proj.baseMonthly >= proj.paceNeeded * 0.8 ? '#F5A623' : '#F45D48';
+  document.getElementById('kpiPaceNote').textContent = `${paceRatio}% of needed pace · ${rec} recruiters × ${ppr.toFixed(2)} PPR`;
+
+  if (proj.gap > 0) { document.getElementById('wiGap').textContent = '−' + proj.gap; document.getElementById('wiGap').style.color = '#F45D48'; }
+  else { document.getElementById('wiGap').textContent = '+' + Math.abs(proj.gap); document.getElementById('wiGap').style.color = '#0A8080'; }
+  renderRisks(proj);
+}
+
+// ── Slider handler ───────────────────────────────────────────────
+function onSliderChange() {
+  const oar = parseInt(document.getElementById('oarSlider').value) / 100;
+  const rec = parseInt(document.getElementById('recSlider').value);
+  const ppr = parseFloat(document.getElementById('pprSlider').value);
+  document.getElementById('oarSliderVal').textContent = (oar*100).toFixed(0) + '%';
+  document.getElementById('recSliderVal').textContent = rec;
+  document.getElementById('pprSliderVal').textContent = ppr.toFixed(2);
+  const oarDelta = ((oar - FALLBACK.baseOAR) * 100).toFixed(0);
+  document.getElementById('oarImpact').textContent = oarDelta > 0 ? `↑ ${oarDelta}pp above baseline` : oarDelta < 0 ? `↓ ${Math.abs(oarDelta)}pp below baseline` : `Baseline OAR · L4 currently at ${FALLBACK.oarByLevel.L4?.oar ?? '—'}%`;
+  const recDelta = rec - FALLBACK.baseRecruiterCount;
+  document.getElementById('recImpact').textContent = recDelta !== 0 ? `${recDelta > 0 ? '+' : ''}${recDelta} vs baseline · ~${Math.abs(Math.round(recDelta * ppr * monthsLeft))} Q1 hire impact` : 'Baseline recruiter count';
+  updateWhatIfDisplay(oar, rec, ppr);
+  renderGauge(computeHealth(oar, rec, ppr));
+  renderRisks(computeProjection(oar, rec, ppr));
+  renderProjectionChart(oar, rec, ppr);
+}
+
+// ── Scenario selector ─────────────────────────────────────────────
+function setScenario(scenario, el) {
+  currentScenario = scenario;
+  document.querySelectorAll('.scenario-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const oar = parseInt(document.getElementById('oarSlider').value) / 100;
+  const rec = parseInt(document.getElementById('recSlider').value);
+  const ppr = parseFloat(document.getElementById('pprSlider').value);
+  renderProjectionChart(oar, rec, ppr);
+}
+
+// ── Dual-mode data fetching (Cowork MCP or Apps Script JSONP) ────
+// Standalone (GitHub Pages) fetches each sheet individually via ?sheet=
+// parameter — avoids combined response size limits and isolates failures.
+const APPS_SCRIPT_URL = 'https://script.google.com/a/macros/gusto.com/s/AKfycbw1GDnQXS_r7ZG2zGyU8w7jjqi6GUzqfHOCzMirkb4jnbOeKQd7GUL2MizKI-soLGA/exec';
+var _sheetCache = {};   // sheetName → resolved rows array
+var _sheetFetches = {}; // sheetName → in-flight Promise
+
+function fetchSheetFromAppsScript(sheetName) {
+  if (_sheetCache[sheetName]) return Promise.resolve(_sheetCache[sheetName]);
+  if (_sheetFetches[sheetName]) return _sheetFetches[sheetName];
+  _sheetFetches[sheetName] = new Promise((resolve, reject) => {
+    const cbName = '_gscb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    const script = document.createElement('script');
+    const timer = setTimeout(() => {
+      delete window[cbName];
+      try { document.head.removeChild(script); } catch(e) {}
+      delete _sheetFetches[sheetName];
+      reject(new Error('Apps Script timed out — make sure you are signed into your Gusto Google account in this browser'));
+    }, 25000);
+    window[cbName] = (data) => {
+      clearTimeout(timer);
+      delete window[cbName];
+      try { document.head.removeChild(script); } catch(e) {}
+      const rows = data[sheetName] || [];
+      _sheetCache[sheetName] = rows;
+      delete _sheetFetches[sheetName];
+      resolve(rows);
+    };
+    script.onerror = () => {
+      clearTimeout(timer);
+      delete window[cbName];
+      delete _sheetFetches[sheetName];
+      reject(new Error('Apps Script failed — make sure you are signed into your Gusto Google account in this browser'));
+    };
+    script.src = `${APPS_SCRIPT_URL}?callback=${cbName}&sheet=${encodeURIComponent(sheetName)}`;
+    document.head.appendChild(script);
+  });
+  return _sheetFetches[sheetName];
+}
+
+function arrayToTSV(rows) {
+  return rows.map(row => row.map(cell => {
+    if (cell == null) return '';
+    // Date object (direct from getValues in Cowork/local context)
+    if (cell instanceof Date) {
+      return `${cell.getMonth()+1}/${cell.getDate()}/${cell.getFullYear()}`;
+    }
+    // ISO string — JSON.stringify converts Date objects to ISO strings,
+    // so JSONP callbacks receive "2026-05-07T07:00:00.000Z" not a Date object
+    if (typeof cell === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(cell)) {
+      const d = new Date(cell);
+      if (!isNaN(d.getTime())) return `${d.getUTCMonth()+1}/${d.getUTCDate()}/${d.getUTCFullYear()}`;
+    }
+    return String(cell);
+  }).join('\t')).join('\n');
+}
+
+function parseCSVToTSV(csv) {
+  const rows = csv.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const result = [];
+  for (const rowStr of rows) {
+    if (!rowStr.trim()) continue;
+    const cols = [];
+    let field = '', inQuotes = false;
+    for (let i = 0; i < rowStr.length; i++) {
+      const ch = rowStr[i], nx = rowStr[i+1];
+      if (inQuotes) {
+        if (ch === '"' && nx === '"') { field += '"'; i++; }
+        else if (ch === '"') { inQuotes = false; }
+        else { field += ch; }
+      } else {
+        if (ch === '"') { inQuotes = true; }
+        else if (ch === ',') { cols.push(field); field = ''; }
+        else { field += ch; }
+      }
+    }
+    cols.push(field);
+    if (cols.some(c => c.length)) result.push(cols.join('\t'));
+  }
+  return result.join('\n');
+}
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`Timed out after ${ms}ms`)), ms))
+  ]);
+}
+
+async function fetchSheetRows(sheetName) {
+  if (window.cowork && window.cowork.callMcpTool) {
+    // Inside Cowork — use MCP connector (12s timeout so we never hang forever)
+    const res = await withTimeout(
+      window.cowork.callMcpTool(TOOL, {
+        spreadsheet_id: PIPELINE_SHEET,
+        range: `${sheetName}!A1:Z500`,
+        include_hidden_rows: false
+      }),
+      12000
+    );
+    return extractSheetContent(res);
+  }
+  // Standalone (GitHub Pages) — per-sheet Apps Script JSONP fetch
+  const rows = await fetchSheetFromAppsScript(sheetName);
+  if (!rows || rows.length === 0) throw new Error(`Sheet "${sheetName}" returned no data`);
+  return arrayToTSV(rows);
+}
