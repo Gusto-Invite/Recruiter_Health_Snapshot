@@ -340,24 +340,52 @@ input[type="range"]::-webkit-slider-thumb {
 .risk-low  .risk-title { color: var(--teal); }
 
 /* ── Accepted offers table ── */
+/* ── Scrollable table wrapper ── */
+.scroll-table-wrap {
+  position: relative;
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid var(--ink-20);
+}
+.scroll-table-wrap::after {
+  content: '';
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  display: block;
+  background: linear-gradient(transparent, rgba(255,255,255,.92));
+  pointer-events: none;
+  margin-top: -36px;
+}
+.scroll-hint-bar {
+  display: flex; align-items: center; justify-content: center;
+  gap: 4px; padding: 5px 10px;
+  font-size: 10px; font-weight: 700; color: var(--ink-60);
+  border-top: 1px solid var(--ink-20); letter-spacing: .4px;
+  text-transform: uppercase;
+}
 .accepts-table-wrap { overflow-x: auto; }
-.accepts-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.accepts-table th { text-align: left; padding: 6px 10px; color: var(--ink-60); font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; border-bottom: 2px solid var(--ink-20); background: var(--bg); }
-.accepts-table td { padding: 7px 10px; border-bottom: 1px solid rgba(0,0,0,.04); vertical-align: middle; }
+.accepts-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.accepts-table th { text-align: left; padding: 5px 10px; color: var(--ink-60); font-weight: 700; font-size: 9.5px; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--ink-20); background: var(--bg); position: sticky; top: 0; z-index: 1; }
+.accepts-table td { padding: 5px 10px; border-bottom: 1px solid rgba(0,0,0,.04); vertical-align: middle; }
 .accepts-table tr:last-child td { border-bottom: none; }
 .accepts-table tr:hover td { background: rgba(0,0,0,.02); }
-.accept-candidate { font-weight: 700; color: var(--ink); }
-.accept-job  { font-size: 11px; color: var(--ink-60); margin-top: 1px; }
-.accept-date { font-size: 11px; color: var(--ink-60); white-space: nowrap; }
-.accept-start { font-size: 11px; font-weight: 700; color: var(--teal); white-space: nowrap; }
-.accept-req-link { font-size: 10px; font-weight: 700; color: var(--coral); text-decoration: none; padding: 2px 7px; border: 1px solid rgba(244,93,72,.25); border-radius: 6px; white-space: nowrap; }
+.accept-candidate { font-weight: 700; color: var(--ink); font-size: 11.5px; }
+.accept-job  { font-size: 10px; color: var(--ink-60); }
+.accept-date { font-size: 10.5px; color: var(--ink-60); white-space: nowrap; }
+.accept-start { font-size: 10.5px; font-weight: 700; color: var(--teal); white-space: nowrap; }
+.accept-req-link { font-size: 9.5px; font-weight: 700; color: var(--coral); text-decoration: none; padding: 1px 6px; border: 1px solid rgba(244,93,72,.25); border-radius: 5px; white-space: nowrap; }
 .accept-req-link:hover { background: rgba(244,93,72,.06); }
-.accept-req-id { font-size: 11px; color: var(--ink-60); font-family: monospace; }
+.accept-req-id { font-size: 10.5px; color: var(--ink-60); font-family: monospace; }
 
 /* ── Open HC table ── */
-.req-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.req-table th { text-align: left; padding: 7px 10px; color: var(--ink-60); font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; border-bottom: 2px solid var(--ink-20); background: var(--bg); }
-.req-table td { padding: 7px 10px; border-bottom: 1px solid rgba(0,0,0,.04); vertical-align: middle; }
+.req-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.req-table th { text-align: left; padding: 5px 10px; color: var(--ink-60); font-weight: 700; font-size: 9.5px; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--ink-20); background: var(--bg); position: sticky; top: 0; z-index: 1; }
+.req-table td { padding: 5px 10px; border-bottom: 1px solid rgba(0,0,0,.04); vertical-align: middle; }
 .req-table tr:last-child td { border-bottom: none; }
 .req-table tr:hover td { background: rgba(0,0,0,.02); }
 
@@ -868,25 +896,29 @@ input[type="range"]::-webkit-slider-thumb {
         <button onclick="clearHCFilters()" style="font-size:11px;padding:7px 12px;border:var(--border);border-radius:10px;background:none;color:var(--ink-60);cursor:pointer;font-family:'Nunito',sans-serif;font-weight:600;transition:background .15s" onmouseover="this.style.background='var(--ink-20)'" onmouseout="this.style.background='none'">Clear filters</button>
       </div>
     </div>
-    <div id="openHCTableWrap" style="overflow-x:auto">
-      <table id="openHCTable" style="width:100%;border-collapse:collapse;font-size:12px">
+    <div class="scroll-table-wrap" id="openHCTableWrap">
+      <table id="openHCTable" class="req-table">
         <thead>
-          <tr style="border-bottom:2px solid var(--ink-20)">
-            <th style="text-align:left;padding:7px 10px;color:var(--ink-60);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;background:var(--bg)">Req ID</th>
-            <th style="text-align:left;padding:7px 10px;color:var(--ink-60);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;background:var(--bg)">Job Title</th>
-            <th style="text-align:left;padding:7px 10px;color:var(--ink-60);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;background:var(--bg)">Org</th>
-            <th style="text-align:left;padding:7px 10px;color:var(--ink-60);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;background:var(--bg)">Team</th>
-            <th style="text-align:left;padding:7px 10px;color:var(--ink-60);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;background:var(--bg)">Level</th>
-            <th style="text-align:left;padding:7px 10px;color:var(--ink-60);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;background:var(--bg)">Recruiter</th>
-            <th style="text-align:left;padding:7px 10px;color:var(--ink-60);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;background:var(--bg)">Hiring PE</th>
-            <th style="text-align:left;padding:7px 10px;color:var(--ink-60);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;background:var(--bg)">Priority</th>
-            <th style="text-align:left;padding:7px 10px;color:var(--ink-60);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;background:var(--bg)">Start Date</th>
+          <tr>
+            <th style="white-space:nowrap">Req ID</th>
+            <th>Job Title</th>
+            <th style="white-space:nowrap">Org</th>
+            <th style="white-space:nowrap">Team</th>
+            <th style="white-space:nowrap">Level</th>
+            <th style="white-space:nowrap">Recruiter</th>
+            <th style="white-space:nowrap">Hiring PE</th>
+            <th style="white-space:nowrap">Priority</th>
+            <th style="white-space:nowrap">Start Date</th>
           </tr>
         </thead>
         <tbody id="openHCTableBody">
           <tr><td colspan="9" style="padding:20px 10px;color:var(--ink-60);text-align:center;font-style:italic;font-size:11px">Loading open headcount…</td></tr>
         </tbody>
       </table>
+    </div>
+    <div class="scroll-hint-bar" id="openHCScrollHint" style="display:none">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 2v6M2 6l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Scroll for more
     </div>
   </div>
 
@@ -1948,14 +1980,15 @@ function buildAcceptsTableHTML(accepts, showRecruiter) {
       <td class="accept-start">${a.startDate || '—'}</td>
     </tr>`;
   }).join('');
-  return `<div class="accepts-table-wrap"><table class="accepts-table">
+  const showHint = accepts.length > 4;
+  return `<div class="scroll-table-wrap"><table class="accepts-table">
     <thead><tr>
       <th>Candidate</th><th>Req ID</th>
       ${showRecruiter ? '<th>Recruiter</th>' : ''}
       <th>Accepted</th><th>Start Date</th>
     </tr></thead>
     <tbody>${rowsHtml}</tbody>
-  </table></div>`;
+  </table></div>${showHint ? `<div class="scroll-hint-bar"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 2v6M2 6l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Scroll for more</div>` : ''}`;
 }
 
 // ── Open Headcount Table ──────────────────────────────────────────
@@ -2018,20 +2051,24 @@ function renderOpenHCTable() {
 
   tbody.innerHTML = filtered.map((r, i) => `
     <tr style="border-bottom:1px solid var(--border);background:${i%2===0?'transparent':'rgba(128,128,128,.04)'}">
-      <td style="padding:8px 10px;white-space:nowrap;font-family:monospace;font-size:11px">${ghLink(r)}</td>
-      <td style="padding:8px 10px;max-width:260px">${r.jobName || '—'}</td>
-      <td style="padding:8px 10px;white-space:nowrap;font-size:11px">${r.dept || '—'}</td>
-      <td style="padding:8px 10px;font-size:11px;color:var(--text2)">${r.fdsTeam || '—'}</td>
-      <td style="padding:8px 10px;white-space:nowrap">
-        ${r.level ? `<span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:10px;background:var(--accent-faint);color:var(--accent)">${levelShort(r.level)}</span>` : '—'}
+      <td style="padding:5px 10px;white-space:nowrap;font-family:monospace;font-size:10.5px">${ghLink(r)}</td>
+      <td style="padding:5px 10px;max-width:220px;font-size:11.5px">${r.jobName || '—'}</td>
+      <td style="padding:5px 10px;white-space:nowrap;font-size:10.5px">${r.dept || '—'}</td>
+      <td style="padding:5px 10px;font-size:10.5px;color:var(--text2)">${r.fdsTeam || '—'}</td>
+      <td style="padding:5px 10px;white-space:nowrap">
+        ${r.level ? `<span style="font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:8px;background:var(--accent-faint);color:var(--accent)">${levelShort(r.level)}</span>` : '—'}
       </td>
-      <td style="padding:8px 10px;white-space:nowrap;font-size:11px">${r.recruiter || '—'}</td>
-      <td style="padding:8px 10px;white-space:nowrap;font-size:11px">${r.hiringPE || '—'}</td>
-      <td style="padding:8px 10px;white-space:nowrap;text-align:center">
-        ${r.priority ? `<span style="font-size:11px;font-weight:700;color:${PRIORITY_COLOR[r.priority]||'var(--text2)'}">${r.priority}</span>` : '—'}
+      <td style="padding:5px 10px;white-space:nowrap;font-size:10.5px">${r.recruiter || '—'}</td>
+      <td style="padding:5px 10px;white-space:nowrap;font-size:10.5px">${r.hiringPE || '—'}</td>
+      <td style="padding:5px 10px;white-space:nowrap;text-align:center">
+        ${r.priority ? `<span style="font-size:10.5px;font-weight:700;color:${PRIORITY_COLOR[r.priority]||'var(--text2)'}">${r.priority}</span>` : '—'}
       </td>
-      <td style="padding:8px 10px;white-space:nowrap;font-size:11px;color:var(--text2)">${r.startDate || '—'}</td>
+      <td style="padding:5px 10px;white-space:nowrap;font-size:10.5px;color:var(--text2)">${r.startDate || '—'}</td>
     </tr>`).join('');
+
+  // Show scroll hint if content overflows
+  const hint = document.getElementById('openHCScrollHint');
+  if (hint) hint.style.display = filtered.length > 5 ? 'flex' : 'none';
 }
 
 function clearHCFilters() {
