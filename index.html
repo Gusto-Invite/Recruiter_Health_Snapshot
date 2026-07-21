@@ -8,9 +8,976 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Song+Myung&display=swap" rel="stylesheet">
-<style>body{font-family:sans-serif}</style>
+<style>
+  :root {
+    --bg:     #F6F4F1;
+    --bg2:    #FFFFFF;
+    --bg3:    #FEEEE7;
+    --border: #E8E0DA;
+    --text:   #222525;
+    --text2:  #4E5151;
+    --accent: #F45D48;
+    --green:  #0A8080;
+    --yellow: #C47A0A;
+    --red:    #D03A28;
+    --purple: #3B9999;
+    --teal:   #0A8080;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Proxima Nova', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    position: relative;
+  }
+
+  .header { background: transparent; border-bottom: none; padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .gusto-logo { display: flex; align-items: center; gap: 8px; padding-right: 14px; border-right: 1px solid var(--border); }
+  .gusto-wordmark { font-size: 18px; font-weight: 800; color: var(--accent); letter-spacing: -0.5px; font-family: 'Song Myung', Georgia, serif; }
+  .header-title { font-size: 15px; font-weight: 700; color: var(--text); font-family: 'Song Myung', Georgia, serif; }
+  .header-sub { font-size: 11px; color: var(--text2); margin-top: 1px; }
+  .status-badge { background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
+  .updated-time { font-size: 11px; color: var(--text2); }
+
+  .container { max-width: 960px; margin: 0 auto; padding: 0 24px 40px; position: relative; z-index: 1; }
+
+  .loading-overlay { position: fixed; inset: 0; background: rgba(250,248,245,0.92); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; gap: 16px; }
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { color: var(--text2); font-size: 13px; }
+
+  /* Top row */
+  .top-row { display: grid; grid-template-columns: 200px 1fr; gap: 18px; margin-bottom: 16px; }
+  .gauge-card { background: rgba(255,255,255,0.55); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.7); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-direction: column; align-items: center; gap: 4px; box-shadow: 0 2px 12px rgba(34,37,37,0.06); }
+  .gauge-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 1.2px; font-weight: 700; }
+  .gauge-wrap { position: relative; width: 150px; height: 85px; }
+  .gauge-value { font-size: 28px; font-weight: 400; text-align: center; margin-top: 2px; font-family: 'Song Myung', Georgia, serif; letter-spacing: -0.3px; }
+  .gauge-desc { font-size: 11px; color: var(--text2); text-align: center; }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+  .kpi-card { background: rgba(255,255,255,0.55); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.7); border-radius: var(--radius); padding: 12px 14px; box-shadow: 0 2px 12px rgba(34,37,37,0.06); }
+  .kpi-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; font-weight: 700; margin-bottom: 8px; }
+  .kpi-value { font-size: 26px; font-weight: 800; line-height: 1; margin-bottom: 4px; font-family: 'Song Myung', Georgia, serif; }
+  .kpi-sub { font-size: 11px; color: var(--text2); }
+  .kpi-note { font-size: 10px; color: var(--text2); margin-top: 6px; line-height: 1.4; font-style: italic; opacity: 0.85; }
+  .goal-bar-wrap { margin-top: 10px; background: rgba(0,0,0,0.06); border-radius: 99px; height: 3px; overflow: hidden; }
+  .goal-bar { height: 100%; border-radius: 99px; transition: width 0.6s ease; }
+  .goal-pct { font-size: 11px; font-weight: 600; margin-top: 5px; }
+  .kpi-badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: 4px; }
+  .badge-red    { background: rgba(244,93,72,0.08); color: #C4402C; border-radius: 8px; padding: 2px 8px; font-size: 10px; font-weight: 700; }
+  .badge-green  { background: rgba(10,128,128,0.08); color: #0A8080; border-radius: 8px; padding: 2px 8px; font-size: 10px; font-weight: 700; }
+  .badge-yellow { background: rgba(217,119,6,0.08); color: #B45309; border-radius: 8px; padding: 2px 8px; font-size: 10px; font-weight: 700; }
+  .badge-blue   { background: rgba(10,128,128,0.08); color: #0A8080; border-radius: 8px; padding: 2px 8px; font-size: 10px; font-weight: 700; }
+
+  /* Accepted offers sub-row */
+  .offers-sub { display: flex; gap: 8px; margin-top: 6px; }
+  .offers-pill { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .pill-green { background: linear-gradient(135deg, rgba(10,128,128,0.22) 0%, rgba(10,128,128,0.07) 100%);  color: var(--green); }
+  .pill-blue  { background: linear-gradient(135deg, rgba(244,93,72,0.20) 0%, rgba(244,93,72,0.06) 100%);  color: var(--accent); }
+
+  /* Mid row */
+  .mid-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; margin-bottom: 16px; }
+  .card { background: rgba(255,255,255,0.55); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.7); border-radius: var(--radius); padding: 14px 16px; box-shadow: 0 2px 12px rgba(34,37,37,0.06); }
+  .card-title { font-family: 'Song Myung', serif; font-size: 15px; font-weight: 400; color: var(--text); text-transform: none; letter-spacing: 0; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+  .card-title span { font-size: 12px; color: var(--text2); font-weight: 400; font-family: inherit; }
+  .chart-container { position: relative; width: 100%; }
+
+  /* Scenario selector */
+  .scenario-tabs { display: flex; gap: 6px; }
+  .scenario-tab { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; border: 1px solid transparent; transition: all 0.15s; }
+  .scenario-tab.pessimistic { border-color: rgba(244,93,72,0.35); color: #F45D48; }
+  .scenario-tab.base { border-color: rgba(244,93,72,0.4); color: var(--accent); }
+  .scenario-tab.base.active { background: rgba(244,93,72,0.12); }
+  .scenario-tab.optimistic { border-color: rgba(10,128,128,0.4); color: var(--green); }
+
+  /* Funnel */
+  .funnel-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .funnel-label { width: 130px; font-size: 11px; color: var(--text2); text-align: right; flex-shrink: 0; }
+  .funnel-bar-wrap { flex: 1; background: rgba(0,0,0,0.05); border-radius: 99px; height: 5px; overflow: hidden; }
+  .funnel-bar { height: 100%; border-radius: 99px; padding: 0; font-size: 0; transition: width 0.4s ease; }
+  .funnel-rate { width: 48px; font-size: 11px; color: var(--text2); text-align: right; flex-shrink: 0; }
+  .funnel-arrow { font-size: 10px; color: var(--text2); text-align: center; padding-left: 142px; margin-bottom: 2px; margin-top: -4px; }
+
+  /* Req pills */
+  .req-pills { display: flex; flex-direction: column; gap: 5px; }
+  .req-pill { border: none; border-radius: 10px; padding: 7px 10px; background: rgba(255,255,255,0.5); cursor: pointer; transition: background 0.15s, box-shadow 0.15s; }
+  .req-pill:hover { background: rgba(10,128,128,0.06); box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
+  .req-pill-row { display: flex; align-items: center; gap: 8px; }
+  .req-pill-name { font-size: 12px; font-weight: 600; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .req-pill-id { font-size: 10px; color: var(--text2); font-family: monospace; flex-shrink: 0; }
+  .req-pill-stages { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+  .req-stage-badge { display: flex; flex-direction: column; align-items: center; min-width: 32px; }
+  .req-stage-label { font-size: 9px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 1px; }
+  .req-stage-val { font-size: 11px; font-weight: 700; padding: 1px 5px; border-radius: 5px; min-width: 24px; text-align: center; }
+  .req-stage-arrow { font-size: 9px; color: var(--border); margin-top: 8px; }
+  .req-proj-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
+  .req-gh-link { font-size: 10px; font-weight: 600; color: var(--accent); text-decoration: none; flex-shrink: 0; padding: 2px 6px; border: 1px solid rgba(244,93,72,0.25); border-radius: 5px; }
+  .req-gh-link:hover { background: rgba(244,93,72,0.06); }
+  .req-insight-btn { font-size: 10px; font-weight: 600; color: var(--teal); background: rgba(10,128,128,0.08); border: none; border-radius: 5px; padding: 2px 7px; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+  .req-insight-btn:hover { background: rgba(10,128,128,0.16); }
+  .req-pill-insight { margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--border); display: none; }
+
+  /* Bottom row */
+  .bottom-row { margin-bottom: 16px; }
+
+  /* What-if */
+  .whatif-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; margin-bottom: 16px; }
+  .whatif-card { background: rgba(255,255,255,0.55); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.7); border-top: 2px solid #0A8080; border-radius: var(--radius); padding: 12px 14px; box-shadow: 0 2px 12px rgba(34,37,37,0.06); }
+  .slider-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .slider-name { font-size: 12px; font-weight: 600; color: var(--text); }
+  .slider-val { font-size: 18px; font-weight: 800; color: var(--accent); font-family: 'Song Myung', Georgia, serif; }
+  input[type="range"] { width: 100%; -webkit-appearance: none; appearance: none; height: 6px; border-radius: 3px; background: var(--border); outline: none; margin-bottom: 8px; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 2px solid var(--bg); }
+  .slider-minmax { display: flex; justify-content: space-between; font-size: 10px; color: var(--text2); }
+  .slider-impact { font-size: 11px; color: var(--text2); margin-top: 6px; }
+
+  /* Projection result */
+  .projection-result { background: rgba(255,255,255,0.55); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.7); border-top: 2px solid #0A8080; border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; box-shadow: 0 2px 12px rgba(34,37,37,0.06); }
+  .proj-title { font-size: 12px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 12px; }
+  .proj-grid { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr; gap: 12px; align-items: center; }
+  .proj-item { text-align: center; }
+  .proj-item-val { font-size: 22px; font-weight: 800; line-height: 1; font-family: 'Song Myung', Georgia, serif; }
+  .proj-item-label { font-size: 10px; color: var(--text2); margin-top: 4px; }
+  .proj-divider { width: 1px; background: var(--border); align-self: stretch; }
+
+  /* Risk cards */
+  .risks-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
+  .risk-card { background: rgba(255,255,255,0.55); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.7); border-radius: var(--radius); padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; box-shadow: 0 2px 12px rgba(34,37,37,0.06); }
+  .risk-icon { flex-shrink: 0; margin-top: 2px; width:22px; height:22px; display:flex; align-items:center; justify-content:center; }
+
+  .metric-icon { display:inline-block; flex-shrink:0; }
+  .metric-icon svg { display:block; }
+  .section-icon { display:inline-flex; align-items:center; gap:6px; }
+  .section-icon svg { flex-shrink:0; }
+
+  .risk-title { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+  .risk-desc { font-size: 11px; color: var(--text2); line-height: 1.5; }
+  .risk-high { border-left: 4px solid #F45D48; } .risk-high .risk-title { color: #F45D48; }
+  .risk-mid { border-left: 4px solid #F5A623; } .risk-mid .risk-title { color: #F5A623; }
+  .risk-low { border-left: 4px solid #0A8080; } .risk-low .risk-title { color: var(--green); }
+
+  /* Historical + OAR */
+  .hist-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 16px; }
+  .oar-row { display: flex; flex-direction: column; gap: 8px; }
+  .oar-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .oar-item-label { width: 28px; font-size: 11px; font-weight: 600; color: var(--text2); }
+  .oar-item-bar-wrap { flex: 1; background: rgba(0,0,0,0.05); border-radius: 99px; height: 5px; overflow: hidden; }
+  .oar-item-bar { height: 100%; border-radius: 99px; padding: 0; font-size: 0; }
+  .oar-item-val { width: 38px; font-size: 12px; font-weight: 700; text-align: right; }
+
+  /* Decline section */
+  .decline-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; margin-bottom: 16px; }
+  .insight-callout { background: rgba(244,93,72,0.05); border: none; border-left: 2px solid rgba(244,93,72,0.35); border-radius: 0 10px 10px 0; padding: 10px 14px; margin-bottom: 14px; font-size: 12px; line-height: 1.6; }
+  .insight-callout strong { color: #F45D48; }
+  .decline-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .decline-label { width: 160px; font-size: 11px; color: var(--text2); text-align: right; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .decline-bar-wrap { flex: 1; background: rgba(0,0,0,0.05); border-radius: 99px; height: 5px; overflow: hidden; }
+  .decline-bar { height: 100%; border-radius: 99px; padding: 0; font-size: 0; transition: width 0.4s ease; }
+  .decline-count { width: 48px; font-size: 11px; font-weight: 600; text-align: right; flex-shrink: 0; }
+
+  /* Analysis / watch notes */
+  .analysis-note { font-size: 11px; color: #6B7280; background: #F9FAFB; border-left: 2px solid #E5E7EB; padding: 6px 10px; border-radius: 0 6px 6px 0; margin-top: 8px; line-height: 1.5; }
+  .analysis-note strong { color: #D97706; }
+  .analysis-note.risk { border-left-color: #F45D48; background: #FFF9F8; color: #9A3412; }
+  .analysis-note.risk strong { color: #F45D48; }
+  .analysis-note.ok { border-left-color: #0A8080; background: #F0FDF9; color: #065F46; }
+  .analysis-note.ok strong { color: #0A8080; }
+
+  .footer { padding: 12px 20px; text-align: center; color: var(--text2); font-size: 11px; border-top: 1px solid var(--border); }
+
+  /* ── Recruiter tabs ──────────────────────────────────────────── */
+  .tab-nav { background: transparent; border-bottom: none; padding: 10px 24px; display: flex; gap: 6px; align-items: center; overflow-x: auto; position: sticky; top: 40px; z-index: 9; scrollbar-width: none; max-width: 960px; margin: 0 auto; }
+  .tab-nav::-webkit-scrollbar { display: none; }
+  .tab-btn { padding: 5px 14px; border: 1.5px solid rgba(0,0,0,0.10); border-radius: 20px; background: rgba(255,255,255,0.55); color: var(--text2); font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: all 0.15s; font-family: inherit; flex-shrink: 0; backdrop-filter: blur(4px); }
+  .tab-btn:hover { border-color: rgba(244,93,72,0.35); color: var(--accent); background: rgba(255,255,255,0.75); }
+  .tab-btn.active { color: #fff; background: var(--accent); border-color: var(--accent); box-shadow: 0 2px 8px rgba(244,93,72,0.22); }
+  .tab-sep { width: 1px; height: 18px; background: var(--border); flex-shrink: 0; margin: 0 3px; }
+
+  /* ── Per-recruiter view ──────────────────────────────────────── */
+  .rec-header { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .rec-name { font-size: 18px; font-weight: 800; color: var(--text); font-family: 'Song Myung', Georgia, serif; }
+  .rec-badge { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+  /* Status report card (replaces rec-top + rec-kpi-grid) */
+  .rec-status-card { background: rgba(255,255,255,0.55); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.7); border-radius: var(--radius); box-shadow: 0 2px 12px rgba(34,37,37,0.06); margin-bottom: 12px; overflow: hidden; }
+  .rec-status-header { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid rgba(0,0,0,0.06); background: rgba(255,255,255,0.3); }
+  /* ── Health Score Screen Effects ── */
+  @keyframes __pulseAmber {
+    0%,100% { opacity:0.45; box-shadow: inset 0 0 50px rgba(245,166,35,0.18), 0 0 0 3px #F5A623; }
+    50%      { opacity:1;    box-shadow: inset 0 0 100px rgba(245,166,35,0.35), 0 0 0 3px #F5A623; }
+  }
+  @keyframes __policeFlash {
+    0%,45%,55%,100% { background:rgba(244,93,72,0.04); border-color:#F45D48; box-shadow:inset 0 0 60px rgba(244,93,72,0.25), 0 0 0 3px #F45D48; }
+    50%             { background:rgba(244,93,72,0.14); border-color:#fff3;   box-shadow:inset 0 0 120px rgba(244,93,72,0.55), 0 0 0 3px #F45D48; }
+  }
+  @keyframes __beaconSpin {
+    from { transform:rotate(0deg); }
+    to   { transform:rotate(360deg); }
+  }
+  @keyframes __healthSlideIn {
+    from { transform:translateX(70px); opacity:0; }
+    to   { transform:translateX(0);   opacity:1; }
+  }
+  @keyframes __healthFadeOut {
+    to { opacity:0; transform:translateX(40px); }
+  }
+  .rec-health-mini-gauge { flex-shrink: 0; }
+  .rec-health-block { display: flex; align-items: center; gap: 10px; }
+  .rec-health-score-big { font-size: 28px; font-weight: 400; line-height: 1; font-family: 'Song Myung', Georgia, serif; letter-spacing: -0.3px; }
+  .rec-health-info { display: flex; flex-direction: column; gap: 1px; }
+  .rec-health-tag { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 1.1px; font-weight: 700; }
+  .rec-health-desc-text { font-size: 12px; font-weight: 700; }
+  .rec-health-divider { width: 1px; height: 36px; background: var(--border); flex-shrink: 0; }
+  .rec-health-note { font-size: 11px; color: var(--text2); line-height: 1.4; }
+  .rec-status-metrics { display: grid; grid-template-columns: repeat(4, 1fr); }
+  .rec-status-metrics-5 { display: grid; grid-template-columns: repeat(5, 1fr); }
+  .rec-metric-block { padding: 12px 14px; border-right: 1px solid rgba(0,0,0,0.06); border-top: none !important; }
+  .rec-metric-block:last-child { border-right: none; }
+  .rec-metric-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 1.1px; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+  .rec-metric-value { font-size: 26px; font-weight: 400; line-height: 1; margin-bottom: 3px; font-family: 'Song Myung', Georgia, serif; letter-spacing: -0.3px; }
+  .rec-metric-sub { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+  .rec-metric-note { font-size: 10px; color: var(--text2); line-height: 1.4; }
+  .rec-mid { margin-bottom: 12px; }
+  .rec-bottom { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 12px; align-items: start; }
+  .rec-section { background: rgba(255,255,255,0.45); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.6); border-radius: var(--radius); padding: 12px; }
+  .rec-section-title { font-family: 'Song Myung', serif; font-size: 15px; font-weight: 400; color: var(--text); text-transform: none; letter-spacing: 0; margin-bottom: 12px; }
+
+  /* ── Predictive analysis post-it ─────────────────────────── */
+  .pred-wrap { margin-bottom: 12px; padding: 6px 4px 2px; }
+  .pred-note {
+    background: linear-gradient(160deg, #FFFDE7 0%, #FFF8C5 100%);
+    border-radius: 3px 3px 5px 5px;
+    padding: 16px 18px 14px;
+    box-shadow: 3px 5px 16px rgba(0,0,0,0.14), 0 1px 4px rgba(0,0,0,0.07), inset 0 -2px 0 rgba(0,0,0,0.04);
+    transform: rotate(-0.6deg);
+    position: relative;
+  }
+  .pred-note::before {
+    content: '';
+    position: absolute;
+    top: -9px; left: 50%; transform: translateX(-50%);
+    width: 54px; height: 18px;
+    background: rgba(244,93,72,0.28);
+    border-radius: 2px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  .pred-title {
+    font-size: 11px; font-weight: 800; letter-spacing: 0.9px;
+    text-transform: uppercase; color: #8B6408;
+    margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+  }
+  .pred-divider { flex: 1; height: 1px; background: rgba(139,100,8,0.15); }
+  .pred-items { display: flex; flex-direction: column; gap: 0; }
+  .pred-item {
+    display: flex; align-items: flex-start; gap: 9px;
+    padding: 7px 0; border-bottom: 1px solid rgba(139,100,8,0.1);
+    font-size: 12px; color: #3D2C04; line-height: 1.5;
+  }
+  .pred-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .pred-icon { flex-shrink: 0; font-size: 13px; margin-top: 1px; width: 18px; text-align: center; }
+  .pred-text { flex: 1; }
+  .pred-text strong { color: #5C3D02; }
+  .pred-badge {
+    flex-shrink: 0; font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; padding: 2px 6px; border-radius: 10px; margin-top: 2px;
+  }
+  .pred-badge-high   { background: rgba(208,58,40,0.15);  color: #D03A28; }
+  .pred-badge-warn   { background: rgba(196,122,10,0.15); color: #C47A0A; }
+  .pred-badge-action { background: rgba(10,128,128,0.12); color: #0A8080; }
+  .pred-badge-ok     { background: rgba(10,128,128,0.12);  color: #0A8080; }
+
+  /* Accepted offers table */
+  .accepts-table-wrap { overflow-x: auto; }
+  .accepts-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .accepts-table th { text-align: left; padding: 5px 8px; color: var(--text2); font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border); background: var(--bg3); }
+  .accepts-table td { padding: 6px 8px; border-bottom: 1px solid rgba(0,0,0,0.04); vertical-align: middle; }
+  .accepts-table tr:last-child td { border-bottom: none; }
+  .accepts-table tr:hover td { background: rgba(0,0,0,0.02); }
+  .accept-candidate { font-weight: 600; color: var(--text); }
+  .accept-job { font-size: 11px; color: var(--text2); margin-top: 1px; }
+  .accept-date { font-size: 11px; color: var(--text2); white-space: nowrap; }
+  .accept-start { font-size: 11px; font-weight: 700; color: var(--green); white-space: nowrap; }
+  .accept-req-link { font-size: 10px; font-weight: 600; color: var(--accent); text-decoration: none; padding: 3px 7px; border: 1px solid rgba(244,93,72,0.25); border-radius: 5px; white-space: nowrap; }
+  .accept-req-id { font-size: 11px; color: var(--text2); font-family: monospace; }
+
+  /* Pipeline per req table */
+  .req-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .req-table th { text-align: center; padding: 6px 8px; color: var(--text2); font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.02); }
+  .req-table th:first-child { text-align: left; }
+  .req-table td { padding: 5px 8px; border-bottom: 1px solid rgba(0,0,0,0.04); text-align: center; vertical-align: middle; }
+  .req-table td:first-child { text-align: left; }
+  .req-input { width: 42px; text-align: center; border: 1px solid var(--border); border-radius: 4px; padding: 3px 4px; font-size: 12px; font-family: inherit; color: var(--text); background: var(--bg); outline: none; }
+  .req-input:focus { border-color: var(--accent); background: #fff; }
+  .req-name-input { width: 100%; min-width: 160px; border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; font-size: 12px; font-family: inherit; color: var(--text); background: var(--bg); outline: none; }
+  .req-name-input:focus { border-color: var(--accent); background: #fff; }
+  .add-req-btn { margin-top: 10px; padding: 6px 14px; border: 1px dashed var(--border); border-radius: 6px; background: none; color: var(--text2); font-size: 11px; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .add-req-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+
+
+  /* ── Illustration Card Headers ──────────────────────────── */
+  .card-hdr { display:flex; align-items:center; gap:10px; margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid rgba(0,0,0,0.06); }
+  .card-hdr-icon { width:40px; height:40px; border-radius:10px; background:rgba(255,255,255,0.6); border:none; box-shadow:0 1px 4px rgba(0,0,0,0.07); display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; }
+  .card-hdr-icon img { max-width:48px; max-height:48px; width:auto; height:auto; display:block; object-fit:contain; }
+  .card-hdr-text { display:flex; flex-direction:column; }
+  .card-hdr-title { font-size:13px; font-weight:600; line-height:1.15; color:var(--text); letter-spacing:-0.2px; }
+  .card-hdr-sub { font-size:11px; color:var(--text2); margin-top:4px; font-weight:400; }
+
+  /* ── Page Hero ─────────────────────────────────────────────── */
+  .page-hero { max-width:960px; margin:0 auto; padding:28px 24px 12px; }
+  .page-hero-label { font-size:11px; font-weight:700; letter-spacing:2px; color:var(--green); text-transform:uppercase; margin-bottom:10px; }
+  .page-hero-title { font-family:'Song Myung',serif; font-size:52px; font-weight:400; color:var(--text); margin:0 0 8px; line-height:1.05; }
+  .page-hero-sub { font-size:15px; color:var(--text2); margin:0 0 28px; }
+
+/* Global frosted override for any remaining white card backgrounds */
+.card, .kpi-card, .gauge-card, .whatif-card, .projection-result, .risk-card, .rec-status-card, .rec-section {
+  background: #ffffff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid #F0EDE9 !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05) !important;
+}
+
+/* Tighter grid spacing */
+.top-row, .mid-row, .hist-row, .decline-row { gap: 20px !important; margin-bottom: 20px !important; }
+.kpi-grid { gap: 14px !important; margin-bottom: 20px !important; }
+.risks-row { gap: 16px !important; margin-bottom: 20px !important; }
+
+/* Compact section padding */
+.container { padding-top: 4px !important; }
+  .whatif-row { gap: 14px !important; margin-bottom: 20px !important; }
+  .bottom-row { gap: 20px !important; margin-bottom: 20px !important; }
+  .rec-status-card { margin-bottom: 20px !important; }
+
+/* Multi-select filter dropdowns */
+.ms-wrap { position:relative; display:inline-block; }
+.ms-btn { font-size:12px; padding:5px 10px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text); cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:8px; white-space:nowrap; width:100%; box-sizing:border-box; }
+.ms-btn:hover { border-color:var(--accent); }
+.ms-btn.active { border-color:var(--accent); color:var(--accent); background:var(--accent-faint); }
+.ms-panel { position:absolute; top:calc(100% + 4px); left:0; z-index:9999; background:var(--bg2); border:1px solid var(--border); border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,.15); min-width:160px; max-height:240px; overflow-y:auto; padding:4px 0; }
+.ms-option { display:flex; align-items:center; gap:8px; padding:6px 12px; cursor:pointer; font-size:12px; color:var(--text); white-space:nowrap; user-select:none; }
+.ms-option:hover { background:var(--bg3); }
+.ms-option input[type=checkbox] { cursor:pointer; accent-color:var(--accent); flex-shrink:0; }
+.ms-divider { height:1px; background:var(--border); margin:3px 0; }
+
+/* Smaller open HC / accepted offers table header cells */
+.hc-table th, .hc-table td { padding: 7px 10px !important; font-size: 11px !important; }
+
+/* Soften table backgrounds */
+.hc-table thead tr { background: rgba(254,238,231,0.5) !important; }
+
+/* Bare section headings — no box, no background */
+.section-heading {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  margin: 36px 0 0 0;
+  letter-spacing: -0.2px;
+  line-height: 1.2;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #E5E7EB;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.section-heading:first-child { margin-top: 8px; }
+.section-heading-sub {
+  font-size: 13px;
+  color: var(--text2);
+  font-family: inherit;
+  font-weight: 400;
+  margin-left: 12px;
+  letter-spacing: 0;
+}
+
+/* Hero card + stat row (Layout 1) */
+.hero-card {
+  background: linear-gradient(135deg, #ffffff 55%, #FFF4F2 100%);
+  border: 1px solid #F0EDE9;
+  border-radius: var(--radius);
+  padding: 22px 26px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.stat-card {
+  background: #ffffff;
+  border: 1px solid #F0EDE9;
+  border-radius: var(--radius);
+  padding: 15px 16px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #F45D48, #F5A623);
+}
+.stat-cat {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: var(--text2);
+  margin-bottom: 5px;
+}
+.stat-num {
+  font-family: 'Song Myung', serif;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+  letter-spacing: -1px;
+  margin-bottom: 4px;
+}
+.stat-desc {
+  font-size: 11px;
+  color: var(--text2);
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+/* ── Concept A: Stripe-tier polish ── */
+#goalBar { background: linear-gradient(90deg, #F45D48, #F5A623) !important; }
+
+.hero-card .analysis-note { font-size: 10px; }
+
+/* Whatif cards */
+.whatif-card { border-radius: var(--radius) !important; padding: 16px !important; }
+.slider-val { font-weight: 700; font-size: 14px; color: var(--accent); }
+.slider-impact { font-size: 11px; color: #6B7280; margin-top: 4px; }
+
+/* Projection result */
+.proj-title { display: none; }
+.projection-result { border-radius: var(--radius) !important; padding: 16px 20px !important; }
+.proj-item-val { font-size: 28px !important; font-weight: 700 !important; letter-spacing: -0.8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important; }
+.proj-item-label { font-size: 10px !important; color: #9CA3AF !important; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.proj-divider { background: #F3F4F6 !important; }
+
+/* Risk cards */
+.risk-card { border-radius: var(--radius) !important; border-left: 3px solid var(--accent) !important; border-top: none !important; }
+
+/* Insight callout */
+.insight-callout { background: #FFF9F8; border: 1px solid #FED7CC; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #9A3412; margin-bottom: 10px; }
+
+/* OAR bars */
+.oar-item-bar { background: linear-gradient(90deg, #0A8080, #2DB5B5) !important; }
+
+/* Funnel bars */
+.funnel-bar { background: linear-gradient(90deg, #0A8080, #2DB5B5) !important; }
+
+/* Table */
+.hc-table thead tr { background: #FAFAFA !important; border-bottom: 2px solid #E5E7EB !important; }
+
+/* Scenario tabs */
+.scenario-tab { border: 1px solid #E5E7EB !important; border-radius: 6px !important; font-size: 11px !important; padding: 4px 12px !important; color: #6B7280 !important; background: #fff !important; }
+.scenario-tab.active { background: #111827 !important; color: #fff !important; border-color: #111827 !important; }
+
+/* Footer */
+.footer { border-top: 1px solid #EBEBEB !important; background: #fff !important; color: #9CA3AF !important; font-size: 11px !important; }
+
+/* Card title line (card-title class) */
+.card-title { font-size: 12px !important; font-weight: 600 !important; color: #374151 !important; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important; text-transform: none !important; letter-spacing: -0.1px !important; }
+.card-title span { font-size: 11px !important; color: #9CA3AF !important; }
+
+/* Gap increase for stat row */
+.stat-row { gap: 8px !important; }
+
+</style>
 </head>
 <body>
-<h1>PLACEHOLDER_TEMP_WILL_BE_REPLACED_BY_FINAL_CORRECT_CALL</h1>
-</body>
-</html>
+<!-- Fixed background blobs -->
+<div style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:-1;pointer-events:none;overflow:hidden">
+  <div style="position:absolute;width:700px;height:700px;top:-300px;right:-250px;border-radius:50%;background:radial-gradient(circle,rgba(244,93,72,0.22) 0%,rgba(244,93,72,0.08) 45%,transparent 70%)"></div>
+  <div style="position:absolute;width:700px;height:700px;bottom:-300px;left:-250px;border-radius:50%;background:radial-gradient(circle,rgba(10,128,128,0.22) 0%,rgba(10,128,128,0.08) 45%,transparent 70%)"></div>
+  <div style="position:absolute;width:550px;height:550px;top:-200px;left:-180px;border-radius:50%;background:radial-gradient(circle,rgba(217,119,6,0.18) 0%,rgba(217,119,6,0.06) 45%,transparent 70%)"></div>
+  <div style="position:absolute;width:550px;height:550px;bottom:-200px;right:-180px;border-radius:50%;background:radial-gradient(circle,rgba(107,85,214,0.18) 0%,rgba(107,85,214,0.06) 45%,transparent 70%)"></div>
+  <div style="position:absolute;width:400px;height:400px;top:38%;left:-180px;border-radius:50%;background:radial-gradient(circle,rgba(10,128,128,0.14) 0%,rgba(10,128,128,0.04) 45%,transparent 70%)"></div>
+  <div style="position:absolute;width:400px;height:400px;top:42%;right:-180px;border-radius:50%;background:radial-gradient(circle,rgba(244,93,72,0.14) 0%,rgba(244,93,72,0.04) 45%,transparent 70%)"></div>
+</div>
+  <!-- Teal: bottom-left -->
+  <div style="position:absolute;width:700px;height:700px;bottom:-300px;left:-250px;border-radius:50%;background:radial-gradient(circle,rgba(10,128,128,0.22) 0%,rgba(10,128,128,0.08) 45%,transparent 70%)"></div>
+  <!-- Amber: top-left -->
+  <div style="position:absolute;width:550px;height:550px;top:-200px;left:-180px;border-radius:50%;background:radial-gradient(circle,rgba(217,119,6,0.18) 0%,rgba(217,119,6,0.06) 45%,transparent 70%)"></div>
+  <!-- Purple: bottom-right -->
+  <div style="position:absolute;width:550px;height:550px;bottom:-200px;right:-180px;border-radius:50%;background:radial-gradient(circle,rgba(107,85,214,0.18) 0%,rgba(107,85,214,0.06) 45%,transparent 70%)"></div>
+  <!-- Teal: mid-left -->
+  <div style="position:absolute;width:400px;height:400px;top:38%;left:-180px;border-radius:50%;background:radial-gradient(circle,rgba(10,128,128,0.14) 0%,rgba(10,128,128,0.04) 45%,transparent 70%)"></div>
+  <!-- Coral: mid-right -->
+  <div style="position:absolute;width:400px;height:400px;top:42%;right:-180px;border-radius:50%;background:radial-gradient(circle,rgba(244,93,72,0.14) 0%,rgba(244,93,72,0.04) 45%,transparent 70%)"></div>
+</div>
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <!-- Target / Q1 Goal -->
+  <symbol id="gi-target" viewBox="0 0 20 20">
+    <circle cx="10" cy="10" r="8.5" stroke="currentColor" stroke-width="1.6" fill="none"/>
+    <circle cx="10" cy="10" r="5" stroke="currentColor" stroke-width="1.6" fill="none"/>
+    <circle cx="10" cy="10" r="2" fill="currentColor"/>
+    <line x1="10" y1="1.5" x2="10" y2="4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    <line x1="10" y1="15.5" x2="10" y2="18.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    <line x1="1.5" y1="10" x2="4.5" y2="10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    <line x1="15.5" y1="10" x2="18.5" y2="10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+  </symbol>
+  <!-- Check circle / Accepted Offers -->
+  <symbol id="gi-check" viewBox="0 0 20 20">
+    <circle cx="10" cy="10" r="8.5" stroke="currentColor" stroke-width="1.6" fill="none"/>
+    <polyline points="6,10.5 8.5,13 14,8" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <!-- Trend up / FTE Projected -->
+  <symbol id="gi-trend" viewBox="0 0 20 20">
+    <polyline points="2,15 7,10 10.5,12.5 18,5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="13.5,5 18,5 18,9.5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <!-- Lightning bolt / Monthly Pace -->
+  <symbol id="gi-bolt" viewBox="0 0 20 20">
+    <polygon points="12,2 5.5,11 10,11 8,18 14.5,9 10,9" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <!-- Calendar / Days Remaining -->
+  <symbol id="gi-calendar" viewBox="0 0 20 20">
+    <rect x="2.5" y="4" width="15" height="13.5" rx="2.5" stroke="currentColor" stroke-width="1.6" fill="none"/>
+    <line x1="2.5" y1="8.5" x2="17.5" y2="8.5" stroke="currentColor" stroke-width="1.4"/>
+    <line x1="6.5" y1="2" x2="6.5" y2="6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    <line x1="13.5" y1="2" x2="13.5" y2="6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    <circle cx="7" cy="13" r="1.2" fill="currentColor"/>
+    <circle cx="10" cy="13" r="1.2" fill="currentColor"/>
+  </symbol>
+  <!-- Funnel / Pipeline -->
+  <symbol id="gi-funnel" viewBox="0 0 20 20">
+    <path d="M3,3.5 L17,3.5 L12,10 L12,17 L8,15 L8,10 Z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <!-- Line chart / Trends -->
+  <symbol id="gi-chart" viewBox="0 0 20 20">
+    <polyline points="2,15 6,10 10,12 14,7 18,5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="2" y1="17.5" x2="18" y2="17.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="2" y1="5" x2="2" y2="17.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </symbol>
+  <!-- Bar chart / History -->
+  <symbol id="gi-bars" viewBox="0 0 20 20">
+    <rect x="3" y="10" width="3.5" height="7" rx="1" stroke="currentColor" stroke-width="1.4" fill="none"/>
+    <rect x="8.25" y="6" width="3.5" height="11" rx="1" stroke="currentColor" stroke-width="1.4" fill="none"/>
+    <rect x="13.5" y="3" width="3.5" height="14" rx="1" stroke="currentColor" stroke-width="1.4" fill="none"/>
+  </symbol>
+  <!-- Sliders / What-if -->
+  <symbol id="gi-sliders" viewBox="0 0 20 20">
+    <line x1="2" y1="5" x2="18" y2="5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="2" y1="10" x2="18" y2="10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="2" y1="15" x2="18" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="7" cy="5" r="2.5" fill="white" stroke="currentColor" stroke-width="1.5"/>
+    <circle cx="13" cy="10" r="2.5" fill="white" stroke="currentColor" stroke-width="1.5"/>
+    <circle cx="6" cy="15" r="2.5" fill="white" stroke="currentColor" stroke-width="1.5"/>
+  </symbol>
+  <!-- Warning triangle / Risk high -->
+  <symbol id="gi-warning" viewBox="0 0 20 20">
+    <path d="M10,3 L18.5,17 L1.5,17 Z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="10" y1="9" x2="10" y2="13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    <circle cx="10" cy="15.5" r="1" fill="currentColor"/>
+  </symbol>
+  <!-- Alert circle / Risk mid -->
+  <symbol id="gi-alert" viewBox="0 0 20 20">
+    <circle cx="10" cy="10" r="8.5" stroke="currentColor" stroke-width="1.6" fill="none"/>
+    <line x1="10" y1="7" x2="10" y2="11.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    <circle cx="10" cy="14" r="1" fill="currentColor"/>
+  </symbol>
+  <!-- Check / Risk low/ok -->
+  <symbol id="gi-ok" viewBox="0 0 20 20">
+    <circle cx="10" cy="10" r="8.5" stroke="currentColor" stroke-width="1.6" fill="none"/>
+    <polyline points="6,10.5 8.5,13 14,8" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <!-- People / Open Headcount -->
+  <symbol id="gi-people" viewBox="0 0 20 20">
+    <circle cx="7" cy="6" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/>
+    <path d="M1,18 C1,14 3.5,11.5 7,11.5 C10.5,11.5 13,14 13,18" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    <circle cx="15" cy="6.5" r="2.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+    <path d="M12.5,12 C13.5,11.5 19,12.5 19,18" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  </symbol>
+  <!-- Handshake / OAR -->
+  <symbol id="gi-handshake" viewBox="0 0 20 20">
+    <path d="M2,11 L6,7 L9,9 L13,7 L18,11" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M2,11 L2,14 Q5,17 8,14.5 L10,13 L12,14.5 Q15,17 18,14 L18,11" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+</svg>
+
+
+<div class="loading-overlay" id="loadingOverlay" style="display:none">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">Fetching live pipeline data…</div>
+</div>
+
+<div class="header">
+  <div class="header-left">
+    <div class="gusto-logo">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M11 2C6.03 2 2 6.03 2 11s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 4a5 5 0 0 1 4.9 4H11V6zm-1 0v4H6.1A5 5 0 0 1 10 6zm-4 5h4v4a5 5 0 0 1-4-4zm5 4V11h4a5 5 0 0 1-4 4z" fill="#F45D48"/>
+      </svg>
+      <span class="gusto-wordmark">gusto</span>
+    </div>
+    <div class="status-badge">LIVE</div>
+  </div>
+  
+  <div class="updated-time" id="updatedTime">Loading…</div>
+</div>
+
+<div class="page-hero">
+  <div class="page-hero-label">ENGINEERING INVITE · Q1 FY27</div>
+  <h1 class="page-hero-title">Engineering Invite Hiring Dashboard</h1>
+  <p class="page-hero-sub">Live metrics across the Engineering org</p>
+</div>
+
+<div class="tab-nav" id="tabNav"></div>
+
+
+<div class="container" id="teamView">
+
+  <div class="section-heading">How are we doing — Engineering — Q1 2027 — Quarter to Date</div>
+
+  <!-- HERO CARD -->
+  <div class="hero-card">
+    <div style="display:flex;align-items:center;gap:24px;">
+      <!-- LEFT: Health gauge -->
+      <div style="flex-shrink:0;text-align:center;min-width:110px;">
+        <div style="width:110px;height:66px;"><canvas id="gaugeChart"></canvas></div>
+        <div style="font-size:8px;color:var(--text2);text-transform:uppercase;letter-spacing:1.2px;font-weight:700;margin-top:6px;">Q1 Health Score</div>
+        <div id="healthValue" style="font-family:'Song Myung',serif;font-size:28px;line-height:1;color:var(--green);">–</div>
+        <div id="healthLabel" style="font-size:11px;color:var(--text2);">Calculating…</div>
+      </div>
+      <div style="width:1px;background:rgba(0,0,0,0.08);align-self:stretch;flex-shrink:0;"></div>
+      <!-- MIDDLE: Goal summary -->
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">Q1 FY27 · May–Jul 2026 &nbsp;·&nbsp; <strong id="teamDaysHeader">–</strong> days remaining · <span id="teamPctHeader">–</span>% elapsed</div>
+        <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:10px;" id="teamGoalSummary">–</div>
+        <div style="background:#F3F4F6;border-radius:99px;height:4px;overflow:hidden;">
+          <div id="goalBar" style="height:100%;border-radius:99px;width:0%;background:var(--green);transition:width 0.4s ease;"></div>
+        </div>
+      </div>
+      <div style="width:1px;background:rgba(0,0,0,0.08);align-self:stretch;flex-shrink:0;"></div>
+      <!-- RIGHT: FTE formula -->
+      <div style="flex-shrink:0;min-width:200px;">
+        <div style="font-size:9px;color:var(--text2);text-transform:uppercase;letter-spacing:0.7px;font-weight:600;margin-bottom:8px;">FTE Projected</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text);line-height:1.6;">FTE Projected = <span id="teamProjBreakdown">–</span></div>
+        <div style="font-size:11px;color:var(--text2);font-style:italic;margin-top:3px;">accepted offers + pace-based remaining</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAT ROW -->
+  <div class="stat-row">
+    <!-- 1. Q1 GOAL -->
+    <div class="stat-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+        <div class="stat-cat">Q1 Goal</div>
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="6.5" stroke="var(--accent)" stroke-width="1.3"/><circle cx="7.5" cy="7.5" r="3" stroke="var(--accent)" stroke-width="1.3"/><circle cx="7.5" cy="7.5" r="1" fill="var(--accent)"/></svg>
+      </div>
+      <div class="stat-num" id="teamGoalValue">46</div>
+      <div class="stat-desc">FTE hires by Jul 31</div>
+      <div id="goalPct" style="font-size:12px;color:var(--yellow);font-weight:600;margin-top:6px;">–</div>
+      <div id="goalNote" style="font-size:11px;color:var(--text2);margin-top:2px;">–</div>
+      <div class="analysis-note" id="watchGoal" style="margin-top:6px;"></div>
+    </div>
+    <!-- 2. ACCEPTED OFFERS -->
+    <div class="stat-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+        <div class="stat-cat">Accepted Offers</div>
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="6.5" stroke="var(--green)" stroke-width="1.3"/><path d="M4.5 7.5l2 2 4-4" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="stat-num" id="kpiAccepted" style="color:var(--green);">–</div>
+      <div class="stat-desc" id="kpiAcceptedSub">
+        <div class="offers-sub">
+          <span class="offers-pill pill-green" id="pillStarted">–</span>
+          <span class="offers-pill pill-blue" id="pillPending">–</span>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px;">Q1 by acceptance date · Excl. interns &amp; apprentices</div>
+      <div class="analysis-note" id="watchAccepted" style="margin-top:6px;"></div>
+    </div>
+    <!-- 3. FTE PROJECTED -->
+    <div class="stat-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+        <div class="stat-cat">FTE Projected</div>
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 11l4-4 3 3 4-5" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 4h3v3" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="stat-num" id="kpiProjected" style="color:var(--green);">–</div>
+      <div id="kpiGapLabel" style="margin-top:4px;font-size:12px;">–</div>
+      <div id="kpiProjectedNote" style="font-size:11px;color:var(--text2);margin-top:4px;">–</div>
+      <div class="analysis-note" id="watchProjected" style="margin-top:6px;"></div>
+    </div>
+    <!-- 4. MONTHLY PACE -->
+    <div class="stat-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+        <div class="stat-cat">Monthly Pace</div>
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 2.5v1M7.5 11.5v1M3 7.5H2M13 7.5h-1M4.6 4.6l-.7-.7M11.1 11.1l-.7-.7M10.4 4.6l.7-.7M3.9 11.1l.7-.7" stroke="var(--yellow)" stroke-width="1.3" stroke-linecap="round"/><circle cx="7.5" cy="7.5" r="2.5" stroke="var(--yellow)" stroke-width="1.3"/></svg>
+      </div>
+      <div class="stat-num" id="kpiPace" style="color:var(--yellow);">–</div>
+      <div class="stat-desc" id="kpiPaceNeeded">–</div>
+      <div style="font-size:11px;color:var(--text2);" id="kpiPaceNote">–</div>
+      <div class="analysis-note" id="watchPace" style="margin-top:6px;"></div>
+    </div>
+    <!-- 5. DAYS REMAINING -->
+    <div class="stat-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+        <div class="stat-cat">Days Remaining</div>
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="3" width="12" height="10" rx="1.5" stroke="var(--text2)" stroke-width="1.3"/><path d="M1.5 6.5h12M5 1.5V4M10 1.5V4" stroke="var(--text2)" stroke-width="1.3" stroke-linecap="round"/></svg>
+      </div>
+      <div class="stat-num" id="kpiDays" style="color:var(--text);">–</div>
+      <div class="stat-desc" id="kpiDaysPct">Of Q1</div>
+      <div style="font-size:11px;color:var(--text2);" id="kpiDaysNote">–</div>
+      <div class="analysis-note" id="watchDays" style="margin-top:6px;"></div>
+    </div>
+  </div>
+
+  <div class="section-heading">Projections &amp; Pipeline</div>
+
+  <div class="mid-row">
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div>
+          <div class="stat-cat">Monthly FTE Hire Projection</div>
+          <div style="font-size:11px;color:var(--text2);">Q1 FY27 · Scenario Modeling</div>
+        </div>
+        <div class="scenario-tabs" style="margin:0;">
+          <div class="scenario-tab base active" onclick="setScenario('base',this)">Base</div>
+          <div class="scenario-tab optimistic" onclick="setScenario('optimistic',this)">Optimistic</div>
+        </div>
+      </div>
+      <div class="chart-container" style="height:170px;"><canvas id="projectionChart"></canvas></div>
+      <div id="projectionRiskNote" class="analysis-note risk" style="margin-top:8px;display:none;"></div>
+    </div>
+    <div class="card">
+      <div style="margin-bottom:12px;">
+        <div class="stat-cat">Current Pipeline Funnel</div>
+        <div style="font-size:11px;color:var(--text2);" id="funnelDate"></div>
+      </div>
+      <div id="funnelContainer"></div>
+      <div id="funnelBottleneckNote" style="margin-top:8px;display:none;"></div>
+    </div>
+  </div>
+
+  <div class="bottom-row">
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div class="stat-cat">Pipeline Stage Trends (Weekly)</div>
+        <div style="font-size:11px;color:var(--text2);">Apr 13 – Jun 8, 2026</div>
+      </div>
+      <div class="chart-container" style="height:170px;"><canvas id="trendChart"></canvas></div>
+      <div id="pipelineTrendNote" class="analysis-note risk" style="margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <div class="section-heading">Scenario Modeling</div>
+
+  <div class="whatif-row">
+    <div class="whatif-card">
+      <div class="stat-cat" style="margin-bottom:8px;">Offer Acceptance Rate (OAR)</div>
+      <div class="slider-label">
+        <div class="slider-name">Current: <span style="color:var(--text2);">85%</span></div>
+        <div class="slider-val" id="oarSliderVal">85%</div>
+      </div>
+      <input type="range" id="oarSlider" min="55" max="100" value="85" step="1" oninput="onSliderChange()">
+      <div class="slider-minmax"><span>55%</span><span>100%</span></div>
+      <div class="slider-impact" id="oarImpact">Baseline OAR · L4 currently at 66%</div>
+    </div>
+    <div class="whatif-card">
+      <div class="stat-cat" style="margin-bottom:8px;">Active Recruiters</div>
+      <div class="slider-label">
+        <div class="slider-name">Current: <span style="color:var(--text2);">10</span></div>
+        <div class="slider-val" id="recSliderVal">10</div>
+      </div>
+      <input type="range" id="recSlider" min="6" max="14" value="10" step="1" oninput="onSliderChange()">
+      <div class="slider-minmax"><span>6</span><span>14</span></div>
+      <div class="slider-impact" id="recImpact"></div>
+    </div>
+    <div class="whatif-card">
+      <div class="stat-cat" style="margin-bottom:8px;">PPR (Accepts per Recruiter/Mo)</div>
+      <div class="slider-label">
+        <div class="slider-name">Baseline: <span style="color:var(--text2);">1.67</span></div>
+        <div class="slider-val" id="pprSliderVal">1.67</div>
+      </div>
+      <input type="range" id="pprSlider" min="0.8" max="3.5" value="1.67" step="0.05" oninput="onSliderChange()">
+      <div class="slider-minmax"><span>0.8</span><span>2.5</span></div>
+      <div class="slider-impact" id="pprImpact">Productivity ratio from capacity planning</div>
+    </div>
+  </div>
+
+  <div class="projection-result">
+    <div class="stat-cat" style="margin-bottom:12px;">What-If Projection (FTE)</div>
+    <div class="proj-grid">
+      <div class="proj-item">
+        <div class="proj-item-val" id="wiMonthlyPace" style="color:var(--accent);">–</div>
+        <div class="proj-item-label">Monthly Pace</div>
+      </div>
+      <div class="proj-divider"></div>
+      <div class="proj-item">
+        <div class="proj-item-val" id="wiHiresRemaining" style="color:var(--accent);">–</div>
+        <div class="proj-item-label">Est. FTE Remaining</div>
+      </div>
+      <div class="proj-divider"></div>
+      <div class="proj-item">
+        <div class="proj-item-val" id="wiTotal" style="color:var(--yellow);">–</div>
+        <div class="proj-item-label">Projected Q1 Total</div>
+      </div>
+      <div class="proj-divider"></div>
+      <div class="proj-item">
+        <div class="proj-item-val" id="wiGap" style="color:var(--red);">–</div>
+        <div class="proj-item-label">Gap to Goal (46)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-heading">Historical Trends &amp; Rates</div>
+
+  <div class="hist-row">
+    <div class="card">
+      <div style="margin-bottom:12px;">
+        <div class="stat-cat">Quarterly Hiring History</div>
+        <div style="font-size:11px;color:var(--text2);">FTE · All Levels</div>
+      </div>
+      <div class="chart-container" style="height:170px;"><canvas id="histChart"></canvas></div>
+      <div class="analysis-note" style="margin-top:8px;"><strong>Context:</strong> Sheet shows Q4 FY26 at 76 accepted FTEs (Tableau reports 82 — ~6 likely in reqs not captured in this sheet export). Q3 FY26 dipped to 41 accepted; Q1 is trending toward a similar mid-year trough.</div>
+    </div>
+    <div class="card">
+      <div style="margin-bottom:12px;">
+        <div class="stat-cat">OAR by Level</div>
+        <div style="font-size:11px;color:var(--text2);">Q1 Actuals · Offer Acceptance Rate</div>
+      </div>
+      <div class="oar-row" id="oarByLevel"></div>
+      <div id="l4OarNote" class="analysis-note risk" style="margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <div class="section-heading">Offer Decline Analysis</div>
+
+  <div class="decline-row">
+    <div class="card">
+      <div style="margin-bottom:12px;">
+        <div class="stat-cat">L4 Offer Decline Reasons</div>
+        <div id="l4DeclineSub" style="font-size:11px;color:var(--text2);"></div>
+      </div>
+      <div id="l4DeclineInsight" class="insight-callout"></div>
+      <div id="l4DeclineContainer"></div>
+    </div>
+    <div class="card">
+      <div style="margin-bottom:12px;">
+        <div class="stat-cat">Decline Reasons by Level</div>
+        <div style="font-size:11px;color:var(--text2);">Q1 (May–Jul 2026) · excl. interns</div>
+      </div>
+      <div class="chart-container" style="height:170px;"><canvas id="declineCompChart"></canvas></div>
+      <div id="declinePatternNote" class="analysis-note" style="margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <div class="section-heading">Risk Flags</div>
+  <div class="risks-row" id="risksContainer"></div>
+
+  <div id="teamAcceptedOffers" style="display:none"></div>
+
+  <div class="section-heading">Open Headcount</div>
+  <div class="card" style="margin-top:0" id="openHCSection">
+    <div style="margin-bottom:12px;">
+      <div class="stat-cat">Open Headcount</div>
+      <div style="font-size:11px;color:var(--text2);" id="openHCSubtitle">Q1 FY27 · Loading…</div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Organization</label>
+        <div id="hcFilterOrg"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Recruiter</label>
+        <div id="hcFilterRec"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Level</label>
+        <div id="hcFilterLevel"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Hiring PE</label>
+        <div id="hcFilterPE"></div>
+      </div>
+      <div style="margin-top:18px">
+        <button onclick="clearHCFilters()" style="font-size:11px;padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--text2);cursor:pointer">Clear filters</button>
+      </div>
+    </div>
+    <div id="openHCTableWrap" style="overflow-x:auto">
+      <table id="openHCTable" style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border);background:rgba(254,238,231,0.5)">
+            <th style="text-align:left;padding:7px 10px;color:var(--text2);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Req ID</th>
+            <th style="text-align:left;padding:7px 10px;color:var(--text2);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.5px">Job Title</th>
+            <th style="text-align:left;padding:7px 10px;color:var(--text2);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Org</th>
+            <th style="text-align:left;padding:7px 10px;color:var(--text2);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Team</th>
+            <th style="text-align:left;padding:7px 10px;color:var(--text2);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Level</th>
+            <th style="text-align:left;padding:7px 10px;color:var(--text2);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Recruiter</th>
+            <th style="text-align:left;padding:7px 10px;color:var(--text2);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Hiring PE</th>
+            <th style="text-align:left;padding:7px 10px;color:var(--text2);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Priority</th>
+            <th style="text-align:left;padding:7px 10px;color:var(--text2);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Start Date</th>
+          </tr>
+        </thead>
+        <tbody id="openHCTableBody">
+          <tr><td colspan="9" style="padding:20px 10px;color:var(--text2);text-align:center;font-style:italic;font-size:11px">Loading open headcount…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div id="recruiterView" style="display:none">
+  <div class="container" id="recruiterContent"></div>
+</div>
+
+<div class="footer" id="footerText">Data sourced from Greenhouse via Google Sheets · Engineering Invite Hiring Dashboard</div>
+
+<script>
+const TOOL = 'mcp__c61042c2-2fb3-4e2e-888c-dce52a6a8c86__fetch';
+const PIPELINE_SHEET = '1jFTGmMfMgsnkCbPPhgwZDPtbNM0-wIM1Ee-FLvTOZVU';
+
+let currentScenario = 'base';
+let projectionChart = null, trendChart = null, gaugeChart = null, histChart = null, declineCompChart = null;
+
+const FALLBACK = {
+  q1Goal: 46,
+  q1Predicted: 40,           // FTE offers accepted in Q1 (by resolved/acceptance date, excl. interns & apprentices)
+  hiresQ1ToDate: 35,         // FTE starts through Jun 24 (excl. interns/apprentices, used for pace projection)
+  acceptedTotal: 40,         // offers accepted in Q1 (resolved date in May–Jul 2026, excl. interns & apprentices)
+  acceptedMay: 23,           // accepted in May
+  acceptedJun: 17,           // accepted in June so far (updated Jun 24 2026)
+  acceptedPending: 12,       // not yet started (future start dates)
+  baseRecruiterCount: 10,
+  basePPR: 1.67,
+  baseOAR: 0.85,
+  oarByLevel: {
+    L1: { oar: 100, accepted: 6,  extended: 6  },
+    L3: { oar: 100, accepted: 6,  extended: 6  },
+    L4: { oar: 56,  accepted: 10, extended: 18 },
+    L5: { oar: 83,  accepted: 5,  extended: 6  }
+  }, // Q1 (May–Jul 2026) from Greenhouse Offers data
+  declineReasons: {
+    L1: { total: 0,  reasons: [] },
+    L3: { total: 0,  reasons: [] },
+    L4: { total: 8,  reasons: [['Cash Compensation',6],['Equity Compensation',2]] },
+    L5: { total: 1,  reasons: [['Cash Compensation',1]] }
+  },
+  pipeline: {
+    weeks: ['Apr 13','Apr 20','Apr 27','May 4','May 11','May 18','May 25','Jun 1','Jun 8','Jun 15','Jun 22'],
+    rs:    [273,260,261,218,241,224,198,261,248,255,184],
+    ia:    [54,43,41,41,50,44,44,45,46,64,55],
+    ir:    [70,63,54,35,25,30,36,37,28,32,36],
+    hc:    [10,15,15,12,12,5,4,4,5,5,7],
+    offer: [11,11,13,13,13,13,7,10,8,10,12],
+    openJobs: [87,74,71,67,49,45,53,58,63,72,68]
+  }
+};
+
+// ── Date math ─────────────────────────────────────────────────────────────
