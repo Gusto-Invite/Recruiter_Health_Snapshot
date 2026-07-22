@@ -771,28 +771,30 @@ async function fetchSheetRows(sheetName) {
 // ── Fetch accepted offers live ─────────────────────────────────────
 async function fetchAcceptedOffers() {
   try {
-    const txt = await fetchSheetRows('Offers [PLEASE DO NOT TOUCH]');
+    const txt = await fetchSheetRows('Offers');
     console.log('[Offers] txt length:', txt ? txt.length : 'null');
     if (!txt || txt.length < 100) { console.warn('[Offers] txt too short, aborting'); return; }
     const rows = lines(txt);
     console.log('[Offers] row count:', rows.length, '| first row sample:', rows[0] && rows[0].slice(0,3));
     let headerIdx = -1, statCol = -1, resCol = -1, jobCol = -1,
-        candCol = -1, reqIdCol = -1, recCol = -1, startCol = -1, appIdCol = -1,
+        candCol = -1, firstCol = -1, lastCol = -1, reqIdCol = -1, recCol = -1, startCol = -1, appIdCol = -1,
         declReasonCol = -1, lvlCol = -1;
     for (let i = 0; i < rows.length; i++) {
-      if (rows[i].includes('Status') && rows[i].includes('Resolved')) {
+      if (rows[i].some(c => /^status/i.test(c)) && rows[i].includes('Resolved')) {
         headerIdx = i;
         const h = rows[i];
-        statCol       = h.indexOf('Status');
+        statCol       = h.findIndex(c => /^status/i.test(c));
         resCol        = h.indexOf('Resolved');
-        jobCol        = h.indexOf('Job');
+        jobCol        = h.findIndex(c => /^job/i.test(c));
         candCol       = h.indexOf('Candidate');
+        firstCol      = h.indexOf('First Name');
+        lastCol       = h.indexOf('Last Name');
         reqIdCol      = h.indexOf('Requisition ID');
         recCol        = h.indexOf('Recruiter');
-        startCol      = h.indexOf('Start Date');
+        startCol      = h.findIndex(c => /^start date/i.test(c));
         appIdCol      = h.indexOf('Application ID');
-        declReasonCol = h.findIndex(c => /decline.?reason/i.test(c) || /reason.?declin/i.test(c));
-        lvlCol        = h.findIndex(c => /^level$/i.test(c) || /job.?level/i.test(c) || /^grade$/i.test(c));
+        declReasonCol = h.findIndex(c => /decline.?reason/i.test(c) || /reason.?declin/i.test(c) || /rejection.?reason/i.test(c));
+        lvlCol        = h.findIndex(c => /^level$/i.test(c) || /job.?level/i.test(c) || /^grade$/i.test(c) || /^level anchor$/i.test(c));
         break;
       }
     }
@@ -865,6 +867,9 @@ async function fetchAcceptedOffers() {
       if (recruiter && !recLive[recruiter])
         recLive[recruiter] = { accepted:0, extended:0, byLevel:{}, declReasons:{} };
 
+      // Team-scoped totals/list — only count offers owned by this team's recruiters
+      if (!engRecruiters.has(recruiter)) continue;
+
       if (status === 'Accepted') {
         total++;
         if (mo === 5) may++; else if (mo === 6) jun++; else jul++;
@@ -882,8 +887,11 @@ async function fetchAcceptedOffers() {
           }
         }
 
+        const candidateName = candCol >= 0
+          ? (row[candCol] || '').trim()
+          : `${firstCol >= 0 ? (row[firstCol] || '').trim() : ''} ${lastCol >= 0 ? (row[lastCol] || '').trim() : ''}`.trim();
         window._acceptedOffersList.push({
-          candidate: candCol  >= 0 ? (row[candCol]  || '').trim() : '',
+          candidate: candidateName,
           reqId:     reqIdCol >= 0 ? (row[reqIdCol] || '').trim() : '',
           appId:     appIdCol >= 0 ? (row[appIdCol] || '').toString().trim() : '',
           job:       jobStr,
