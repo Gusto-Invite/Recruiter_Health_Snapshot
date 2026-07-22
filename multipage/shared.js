@@ -714,29 +714,38 @@ function updateKPIs(proj) {
     `${hiresWithPipeline} confirmed · ${remainingAfterPipeline} more needed in ${daysRemaining}d`;
 
   // ── Dynamic analysis notes ────────────────────────────────────────
+  // Guarded like watchPace/watchDays below — #watchGoal/#watchProjected don't
+  // exist on any of the 5 team pages (including Engineering's), so calling
+  // .className on them unconditionally threw and aborted the rest of this
+  // function every time live data loaded, before it could reach the OAR-by-
+  // level / decline-reasons / accepted-offers-count updates further down.
   const goalW = document.getElementById('watchGoal');
-  const stillLeft = Math.max(0, goal - accepted);
-  if (stillLeft === 0) {
-    goalW.className = 'analysis-note ok';
-    goalW.innerHTML = '<strong>✓ On track:</strong> Goal is covered by accepted offers.';
-  } else if (accepted / goal >= 0.6) {
-    goalW.className = 'analysis-note';
-    goalW.innerHTML = `<strong>Watch:</strong> ${stillLeft} more offers need to be accepted before Jul 31 to hit goal. Focus on converting active pipeline to offers in June.`;
-  } else {
-    goalW.className = 'analysis-note risk';
-    goalW.innerHTML = `<strong>⚠ At risk:</strong> Only ${Math.round(accepted/goal*100)}% of goal confirmed. Requires ${stillLeft} more accepts in ${daysRemaining} days — a significant acceleration from current pace.`;
+  if (goalW) {
+    const stillLeft = Math.max(0, goal - accepted);
+    if (stillLeft === 0) {
+      goalW.className = 'analysis-note ok';
+      goalW.innerHTML = '<strong>✓ On track:</strong> Goal is covered by accepted offers.';
+    } else if (accepted / goal >= 0.6) {
+      goalW.className = 'analysis-note';
+      goalW.innerHTML = `<strong>Watch:</strong> ${stillLeft} more offers need to be accepted before Jul 31 to hit goal. Focus on converting active pipeline to offers in June.`;
+    } else {
+      goalW.className = 'analysis-note risk';
+      goalW.innerHTML = `<strong>⚠ At risk:</strong> Only ${Math.round(accepted/goal*100)}% of goal confirmed. Requires ${stillLeft} more accepts in ${daysRemaining} days — a significant acceleration from current pace.`;
+    }
   }
 
   const projW = document.getElementById('watchProjected');
-  if (proj.gap <= 0) {
-    projW.className = 'analysis-note ok';
-    projW.innerHTML = '<strong>✓ On pace:</strong> Base projection meets or exceeds goal at current recruiter count and OAR.';
-  } else if (proj.gap <= 5) {
-    projW.className = 'analysis-note';
-    projW.innerHTML = `<strong>Watch:</strong> ${proj.gap}-hire gap is closable — improving OAR by ~5pp or adding one recruiter brings projection to goal.`;
-  } else {
-    projW.className = 'analysis-note risk';
-    projW.innerHTML = `<strong>⚠ At risk:</strong> ${proj.gap}-hire gap requires meaningful intervention. Use the what-if sliders below to model scenarios.`;
+  if (projW) {
+    if (proj.gap <= 0) {
+      projW.className = 'analysis-note ok';
+      projW.innerHTML = '<strong>✓ On pace:</strong> Base projection meets or exceeds goal at current recruiter count and OAR.';
+    } else if (proj.gap <= 5) {
+      projW.className = 'analysis-note';
+      projW.innerHTML = `<strong>Watch:</strong> ${proj.gap}-hire gap is closable — improving OAR by ~5pp or adding one recruiter brings projection to goal.`;
+    } else {
+      projW.className = 'analysis-note risk';
+      projW.innerHTML = `<strong>⚠ At risk:</strong> ${proj.gap}-hire gap requires meaningful intervention. Use the what-if sliders below to model scenarios.`;
+    }
   }
 
   const paceW = document.getElementById('watchPace');
