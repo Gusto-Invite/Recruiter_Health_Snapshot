@@ -12,12 +12,12 @@ let projectionChart = null, trendChart = null, gaugeChart = null, histChart = nu
 
 const FALLBACK = {
   q1Goal: _TC.goal || 46,
-  q1Predicted: 27,
-  hiresQ1ToDate: 29,
-  acceptedTotal: 27,
-  acceptedMay: 23,
-  acceptedJun: 4,
-  acceptedPending: 14,
+  q1Predicted: 27,           // FTE offers accepted in Q1 (by resolved/acceptance date, excl. interns & apprentices)
+  hiresQ1ToDate: 29,         // FTE starts through Jun 9 (excl. interns/apprentices, used for pace projection)
+  acceptedTotal: 27,         // offers accepted in Q1 (resolved date in May–Jul 2026, excl. interns & apprentices)
+  acceptedMay: 23,           // accepted in May
+  acceptedJun: 4,            // accepted in June so far
+  acceptedPending: 14,       // not yet started (future start dates)
   baseRecruiterCount: 9,
   basePPR: 1.44,
   baseOAR: 0.85,
@@ -26,7 +26,7 @@ const FALLBACK = {
     L3: { oar: 100, accepted: 6,  extended: 6  },
     L4: { oar: 56,  accepted: 10, extended: 18 },
     L5: { oar: 83,  accepted: 5,  extended: 6  }
-  },
+  }, // Q1 (May–Jul 2026) from Greenhouse Offers data
   declineReasons: {
     L1: { total: 0,  reasons: [] },
     L3: { total: 0,  reasons: [] },
@@ -44,6 +44,7 @@ const FALLBACK = {
   }
 };
 
+// ── Date math ──────────────────────────────────────────────────────
 const today      = new Date();
 const qStart     = new Date('2026-05-01');
 const qEnd       = new Date('2026-07-31');
@@ -53,6 +54,7 @@ const daysRemaining = Math.max(0, Math.floor((qEnd - today) / 86400000));
 const pctThrough    = (daysElapsed / daysTotal * 100).toFixed(1);
 const monthsLeft    = daysRemaining / 30.0;
 
+// ── Helpers ────────────────────────────────────────────────────────
 function extractSheetContent(r) {
   if (!r || r.isError) return '';
   if (r.structuredContent?.content) return r.structuredContent.content;
@@ -71,6 +73,10 @@ function parsePipelineSnapshot(txt) {
   const data = { weeks:[], rs:[], ia:[], ir:[], hc:[], offer:[], openJobs:[] };
   const rows = lines(txt);
   let headerRow = null;
+
+  // Week header cells may be text ("Week of Apr 13") OR date strings ("4/13/2026")
+  // — the latter happens when Apps Script getValues() returns Date objects which
+  //   JSON.stringify converts to ISO strings that arrayToTSV formats as M/D/YYYY
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const isDateStr = s => /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s);
   const isWeekCell = s => s.startsWith('Week of') || isDateStr(s);
@@ -94,6 +100,8 @@ function parsePipelineSnapshot(txt) {
     if (key) data[key] = weekCols.map((_, i) => { const v = parseInt(row[i+1]); return isNaN(v) ? 0 : v; });
   }
 
+  // Trim trailing weeks with no data (future week columns show as all-zeros)
+  // Use RS as the signal — find the last week with a non-zero RS value
   if (data.rs && data.rs.length > 0) {
     let lastIdx = data.rs.length - 1;
     while (lastIdx > 0 && data.rs[lastIdx] === 0) lastIdx--;
@@ -112,6 +120,7 @@ function parsePipelineSnapshot(txt) {
   return data.weeks.length > 0 ? data : null;
 }
 
+// ── Projection model ───────────────────────────────────────────────
 function computeProjection(oar, rec, ppr) {
   const baseMonthly = rec * ppr * (oar / FALLBACK.baseOAR);
   const remaining   = Math.round(baseMonthly * monthsLeft);
@@ -135,6 +144,7 @@ const SCENARIOS = {
   optimistic:  { mult: 1.35, color: '#00B094' }
 };
 
+// ── Health score ───────────────────────────────────────────────────
 function computeHealth(oar, rec, ppr) {
   const proj = computeProjection(oar, rec, ppr);
   return Math.round(
@@ -150,6 +160,7 @@ Chart.defaults.color = '#7A6E65';
 Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 Chart.defaults.font.size = 11;
 
+// ── Gauge ──────────────────────────────────────────────────────────
 function renderGauge(score) {
   const col = healthColor(score);
   document.getElementById('healthValue').textContent = score;
@@ -161,9 +172,11 @@ function renderGauge(score) {
     data: { datasets: [{ data: [score, 100-score], backgroundColor: [col,'rgba(0,0,0,0.06)'], borderWidth: 0, circumference: 180, rotation: 270 }] },
     options: { responsive:true, maintainAspectRatio:false, cutout:'72%', plugins:{ legend:{display:false}, tooltip:{enabled:false} }, animation:{duration:600} }
   });
+  // Screen effect — use 'team-overview' as the key so it retriggers if score changes
   setTimeout(() => triggerHealthEffect(score, `team:${score}`, true), 400);
 }
 
+// ── Projection chart ───────────────────────────────────────────────
 function renderProjectionChart(oar, rec, ppr) {
   const s = SCENARIOS[currentScenario];
   const data = getMonthBreakdown(oar, rec, ppr, s.mult);
@@ -181,6 +194,7 @@ function renderProjectionChart(oar, rec, ppr) {
   });
 }
 
+// ── Pipeline trend ─────────────────────────────────────────────────
 function renderTrendChart(pd) {
   const labels = pd.weeks.map(w => w.replace('Week of ',''));
   if (trendChart) trendChart.destroy();
@@ -208,6 +222,7 @@ function renderTrendChart(pd) {
   });
 }
 
+// ── Funnel ─────────────────────────────────────────────────────────
 function renderFunnel(pd) {
   console.log('[Funnel] renderFunnel called — rs:', pd && pd.rs, 'offer:', pd && pd.offer);
   if (!pd || !pd.rs || !pd.rs.length) { console.warn('[Funnel] bad data, skipping'); return; }
@@ -231,13 +246,17 @@ function renderFunnel(pd) {
     html += `<div class="funnel-row"><div class="funnel-label">${s.name}</div><div class="funnel-bar-wrap"><div class="funnel-bar" style="width:${barPct}%;background:${s.color}">${s.val}</div></div><div class="funnel-rate">${s.val}</div></div>`;
   });
   document.getElementById('funnelContainer').innerHTML = html;
+  // Date from the latest week column header, or today if not available
   const latestWeek = pd.weeks && pd.weeks.length > 0 ? pd.weeks.slice(-1)[0] : null;
   const dateLabel = latestWeek ? latestWeek.replace('Week of ', '') : new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
   document.getElementById('funnelDate').textContent = `as of ${dateLabel}`;
 }
 
+// ── Historical chart ───────────────────────────────────────────────
+// Stored live quarterly history once loaded
 let _liveHistData = null;
 
+// Gusto fiscal quarter: Q1=May-Jul, Q2=Aug-Oct, Q3=Nov-Jan, Q4=Feb-Apr
 function getFQLabel(mo, yr) {
   if (mo >= 5 && mo <= 7)  return `Q1 FY${(yr + 1) - 2000}`;
   if (mo >= 8 && mo <= 10) return `Q2 FY${(yr + 1) - 2000}`;
@@ -247,6 +266,7 @@ function getFQLabel(mo, yr) {
   return null;
 }
 
+// Ordered list of completed history quarters to show
 const HISTORY_QUARTERS = ['Q1 FY26','Q2 FY26','Q3 FY26','Q4 FY26'];
 
 function renderHistChart(projected, liveHist) {
@@ -286,6 +306,7 @@ function renderHistChart(projected, liveHist) {
     }
   });
 
+  // Update analysis note
   if (hd && hd.labels.length >= 2) {
     const lastHist  = hd.accepted[hd.labels.length - 1];
     const prevHist  = hd.accepted[hd.labels.length - 2];
@@ -299,6 +320,7 @@ function renderHistChart(projected, liveHist) {
   }
 }
 
+// ── Decline reasons ────────────────────────────────────────────────
 function renderDeclineSection() {
   const l4 = FALLBACK.declineReasons.L4;
   const maxCount = l4.reasons[0][1];
@@ -313,6 +335,7 @@ function renderDeclineSection() {
     'Other':                 '#4a5568'
   };
 
+  // L4 horizontal bars
   let html = '';
   l4.reasons.forEach(([reason, count]) => {
     const pct = (count / l4.total * 100).toFixed(0);
@@ -329,6 +352,7 @@ function renderDeclineSection() {
   });
   document.getElementById('l4DeclineContainer').innerHTML = html;
 
+  // Cross-level comparison grouped bar chart
   const levels = ['L1','L3','L4','L5'];
   const topReasons = ['Cash Compensation','Equity Compensation'];
   const palette = ['#F45D48','#e67e22'];
@@ -365,6 +389,7 @@ function renderDeclineSection() {
   });
 }
 
+// ── OAR by level ───────────────────────────────────────────────────
 function renderOARByLevel() {
   let html = '';
   Object.entries(FALLBACK.oarByLevel).forEach(([lvl, d]) => {
@@ -383,6 +408,7 @@ function renderOARByLevel() {
   document.getElementById('oarByLevel').innerHTML = html;
 }
 
+// ── Risk flags ─────────────────────────────────────────────────────
 function renderRisks(proj) {
   const gap = proj.gap;
   const l4OAR = FALLBACK.oarByLevel.L4.oar;
@@ -415,12 +441,14 @@ function renderRisks(proj) {
   ).join('');
 }
 
+// ── Update KPIs ────────────────────────────────────────────────────
 function updateKPIs(proj) {
   const goal = FALLBACK.q1Goal;
   const accepted = FALLBACK.acceptedTotal;
   const started  = FALLBACK.hiresQ1ToDate;
   const pending  = FALLBACK.acceptedPending;
 
+  // ── Team status card header ──────────────────────────────────────
   document.getElementById('teamDaysHeader').textContent = daysRemaining;
   document.getElementById('teamPctHeader').textContent = pctThrough;
   const stillLeft0 = Math.max(0, goal - accepted);
@@ -429,6 +457,7 @@ function updateKPIs(proj) {
   const remaining0 = proj.total - started;
   document.getElementById('teamProjBreakdown').textContent = `${started} accepted + ~${Math.max(0,remaining0)} projected = ${proj.total}`;
 
+  // Goal card — progress bar
   const confirmedPct = Math.round(accepted / goal * 100);
   const barColor = confirmedPct >= 90 ? '#00B094' : confirmedPct >= 60 ? '#F5A623' : '#F45D48';
   document.getElementById('goalBar').style.width = Math.min(100, confirmedPct) + '%';
@@ -438,6 +467,7 @@ function updateKPIs(proj) {
   const stillNeeded = Math.max(0, goal - accepted);
   document.getElementById('goalNote').textContent = `${accepted} accepted in Q1 · ${stillNeeded} more needed by Jul 31`;
 
+  // Projected card
   const projPct = Math.round(proj.total / goal * 100);
   const projColor = proj.total >= goal ? '#00B094' : proj.total >= Math.round(goal * 0.9) ? '#F5A623' : '#F45D48';
   document.getElementById('kpiProjected').textContent = proj.total;
@@ -448,6 +478,7 @@ function updateKPIs(proj) {
   document.getElementById('kpiProjectedNote').textContent =
     `${projPct}% to goal · ${proj.gap > 0 ? `${proj.gap} hire${proj.gap > 1 ? 's' : ''} short at current pace` : 'Goal within reach at base pace'}`;
 
+  // Accepted pace insight (dynamic — only show once live data is available)
   const watchAcc = document.getElementById('watchAccepted');
   if (watchAcc && accepted > 0 && FALLBACK.acceptedMay > 0) {
     const junCount = FALLBACK.acceptedJun;
@@ -467,6 +498,7 @@ function updateKPIs(proj) {
     }
   }
 
+  // Pace card (may be absent from team view)
   const paceRatio = Math.round(proj.baseMonthly / proj.paceNeeded * 100);
   const kpiPaceEl = document.getElementById('kpiPace');
   if (kpiPaceEl) {
@@ -478,6 +510,7 @@ function updateKPIs(proj) {
     if (kpiPaceNote) kpiPaceNote.textContent = `${paceRatio}% of needed pace · 9 recruiters × 1.44 PPR`;
   }
 
+  // Days card (may be absent from team view)
   const hiresWithPipeline = started + pending;
   const remainingAfterPipeline = Math.max(0, goal - hiresWithPipeline);
   const kpiDaysEl = document.getElementById('kpiDays');
@@ -486,7 +519,8 @@ function updateKPIs(proj) {
     const kpiDaysPct = document.getElementById('kpiDaysPct');
     if (kpiDaysPct) kpiDaysPct.textContent = `${pctThrough}% of Q1 elapsed`;
   }
-
+  
+  // Team OAR
   const teamOAREl = document.getElementById('teamOARVal');
   const teamOARNote = document.getElementById('teamOARNote');
   const teamOARWatch = document.getElementById('watchOAR');
@@ -506,6 +540,7 @@ function updateKPIs(proj) {
   if (kpiDaysNote) kpiDaysNote.textContent =
     `${hiresWithPipeline} confirmed · ${remainingAfterPipeline} more needed in ${daysRemaining}d`;
 
+  // ── Dynamic analysis notes ────────────────────────────────────────
   const goalW = document.getElementById('watchGoal');
   const stillLeft = Math.max(0, goal - accepted);
   if (stillLeft === 0) {
@@ -562,6 +597,7 @@ function updateKPIs(proj) {
   }
 }
 
+// ── What-if display ────────────────────────────────────────────────
 function updateWhatIfDisplay(oar, rec, ppr) {
   const proj = computeProjection(oar, rec, ppr);
   const goal = FALLBACK.q1Goal;
@@ -574,6 +610,7 @@ function updateWhatIfDisplay(oar, rec, ppr) {
   document.getElementById('wiTotal').textContent = proj.total;
   document.getElementById('wiTotal').style.color = projColor;
 
+  // Also update projected KPI + breakdown live
   document.getElementById('kpiProjected').textContent = proj.total;
   document.getElementById('kpiProjected').style.color = projColor;
   document.getElementById('kpiProjectedNote').textContent =
@@ -593,6 +630,7 @@ function updateWhatIfDisplay(oar, rec, ppr) {
   else { document.getElementById('wiGap').textContent = '+' + Math.abs(proj.gap); document.getElementById('wiGap').style.color = '#00B094'; }
 }
 
+// ── Slider handler ─────────────────────────────────────────────────
 function onSliderChange() {
   const oar = parseInt(document.getElementById('oarSlider').value) / 100;
   const rec = parseInt(document.getElementById('recSlider').value);
@@ -610,6 +648,7 @@ function onSliderChange() {
   renderProjectionChart(oar, rec, ppr);
 }
 
+// ── Scenario selector ──────────────────────────────────────────────
 function setScenario(scenario, el) {
   currentScenario = scenario;
   document.querySelectorAll('.scenario-tab').forEach(t => t.classList.remove('active'));
@@ -620,9 +659,12 @@ function setScenario(scenario, el) {
   renderProjectionChart(oar, rec, ppr);
 }
 
+// ── Dual-mode data fetching (Cowork MCP or Apps Script JSONP) ────────
+// Standalone (GitHub Pages) fetches each sheet individually via ?sheet=
+// parameter — avoids combined response size limits and isolates failures.
 const APPS_SCRIPT_URL = 'https://script.google.com/a/macros/gusto.com/s/AKfycbw1GDnQXS_r7ZG2zGyU8w7jjqi6GUzqfHOCzMirkb4jnbOeKQd7GUL2MizKI-soLGA/exec';
-var _sheetCache = {};
-var _sheetFetches = {};
+var _sheetCache = {};   // sheetName → resolved rows array
+var _sheetFetches = {}; // sheetName → in-flight Promise
 
 function fetchSheetFromAppsScript(sheetName) {
   if (_sheetCache[sheetName]) return Promise.resolve(_sheetCache[sheetName]);
@@ -661,9 +703,12 @@ function fetchSheetFromAppsScript(sheetName) {
 function arrayToTSV(rows) {
   return rows.map(row => row.map(cell => {
     if (cell == null) return '';
+    // Date object (direct from getValues in Cowork/local context)
     if (cell instanceof Date) {
       return `${cell.getMonth()+1}/${cell.getDate()}/${cell.getFullYear()}`;
     }
+    // ISO string — JSON.stringify converts Date objects to ISO strings,
+    // so JSONP callbacks receive "2026-05-07T07:00:00.000Z" not a Date object
     if (typeof cell === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(cell)) {
       const d = new Date(cell);
       if (!isNaN(d.getTime())) return `${d.getUTCMonth()+1}/${d.getUTCDate()}/${d.getUTCFullYear()}`;
@@ -706,6 +751,7 @@ function withTimeout(promise, ms) {
 
 async function fetchSheetRows(sheetName) {
   if (window.cowork && window.cowork.callMcpTool) {
+    // Inside Cowork — use MCP connector (12s timeout so we never hang forever)
     const res = await withTimeout(
       window.cowork.callMcpTool(TOOL, {
         spreadsheet_id: PIPELINE_SHEET,
@@ -716,11 +762,13 @@ async function fetchSheetRows(sheetName) {
     );
     return extractSheetContent(res);
   }
+  // Standalone (GitHub Pages) — per-sheet Apps Script JSONP fetch
   const rows = await fetchSheetFromAppsScript(sheetName);
   if (!rows || rows.length === 0) throw new Error(`Sheet "${sheetName}" returned no data`);
   return arrayToTSV(rows);
 }
 
+// ── Fetch accepted offers live ─────────────────────────────────────
 async function fetchAcceptedOffers() {
   try {
     const txt = await fetchSheetRows('Offers');
@@ -755,13 +803,15 @@ async function fetchAcceptedOffers() {
 
     const isNonFTE = t => /\bintern\b/.test(t) || /apprentice/.test(t) || /temporary/.test(t);
     const today  = new Date(); today.setHours(0,0,0,0);
-    const q1End  = new Date(2026, 6, 31);
+    const q1End  = new Date(2026, 6, 31); // Jul 31 2026
     const engRecruiters = new Set(RECRUITERS.map(r => r.name));
 
     let total = 0, may = 0, jun = 0, jul = 0, startedCount = 0, pendingCount = 0;
     window._acceptedOffersList = [];
 
+    // Per-recruiter live tracking { accepted, extended, byLevel:{L4:{acc,ext}}, declReasons:{reason:count} }
     const recLive = {};
+    // Quarterly history buckets (Engineering only) { label → {accepted, extended} }
     const qBuckets = {};
 
     let _dbg = 0, _dbgSkipStatus=0, _dbgSkipNonFTE=0, _dbgSkipDate=0, _dbgSkipYr=0;
@@ -792,18 +842,22 @@ async function fetchAcceptedOffers() {
       _dbg++;
       if (!mo || !yr) { _dbgSkipDate++; continue; }
       if (!(yr === 2025 || yr === 2026)) { _dbgSkipYr++; }
+      // Accept 2025-2026 data for history; 2026 Q1 FY27 for current quarter
       if (!(yr === 2025 || yr === 2026)) continue;
 
       const recruiter = recCol >= 0 ? (row[recCol] || '').trim() : '';
 
+      // Quarterly history — Engineering recruiters only
       const fqLabel = getFQLabel(mo, yr);
       if (fqLabel && engRecruiters.has(recruiter)) {
         if (!qBuckets[fqLabel]) qBuckets[fqLabel] = { accepted: 0, extended: 0 };
         if (status === 'Accepted') qBuckets[fqLabel].accepted++;
-        qBuckets[fqLabel].extended++;
+        qBuckets[fqLabel].extended++; // count all extended (Accepted + Declined + etc.)
       }
 
+      // Current Q1 FY27 data — proceed with existing logic
       if (!(yr === 2026 && mo >= 5 && mo <= 7)) continue;
+      // Derive level from dedicated column or job title
       let levelKey = lvlCol >= 0 ? (row[lvlCol] || '').trim() : '';
       if (!levelKey) {
         const m = jobStr.match(/\b(L[1-9])\b/i);
@@ -812,13 +866,14 @@ async function fetchAcceptedOffers() {
 
       if (recruiter && !recLive[recruiter])
         recLive[recruiter] = { accepted:0, extended:0, byLevel:{}, declReasons:{} };
-
+      // Team-scoped totals/list — only count offers owned by this team's recruiters
       if (!engRecruiters.has(recruiter)) continue;
 
       if (status === 'Accepted') {
         total++;
         if (mo === 5) may++; else if (mo === 6) jun++; else jul++;
-        startedCount = total;
+        // Count all accepted offers (by accept date, not start date)
+        startedCount = total; // updated each iteration; final value = total accepted
         pendingCount = 0;
 
         if (recruiter) {
@@ -844,6 +899,7 @@ async function fetchAcceptedOffers() {
           startDate: startCol >= 0 ? (row[startCol] || '').trim() : '',
         });
       } else {
+        // Extended but not accepted (Declined, Rescinded, etc.)
         if (recruiter) {
           recLive[recruiter].extended++;
           if (levelKey) {
@@ -858,12 +914,14 @@ async function fetchAcceptedOffers() {
       }
     }
 
+    // Sort accepted list by date desc
     window._acceptedOffersList.sort((a, b) => {
       const toMs = d => { const p = (d||'').split('/'); return p.length===3 ? new Date(+p[2],+p[0]-1,+p[1]).getTime() : 0; };
       return toMs(b.resolved) - toMs(a.resolved);
     });
 
     console.log('[Offers] loop done — total:', total, 'skipStatus:', _dbgSkipStatus, 'skipNonFTE:', _dbgSkipNonFTE, 'skipDate:', _dbgSkipDate, 'skipYr:', _dbgSkipYr, 'passed:', _dbg);
+    // ── Build quarterly history from live data (Engineering only) ────
     const histLabels = [], histAccepted = [], histExtended = [];
     for (const ql of HISTORY_QUARTERS) {
       const b = qBuckets[ql];
@@ -879,6 +937,7 @@ async function fetchAcceptedOffers() {
       renderHistChart(proj0.total, { labels: histLabels, accepted: histAccepted, extended: histExtended });
     }
 
+    // ── Update FALLBACK with live values ──────────────────────────────
     if (total > 0) {
       FALLBACK.acceptedTotal    = total;
       FALLBACK.acceptedMay      = may;
@@ -888,6 +947,7 @@ async function fetchAcceptedOffers() {
       console.log(`[Offers] FALLBACK updated — total:${total} started:${startedCount} pending:${pendingCount}`);
     }
 
+    // ── Update per-recruiter data from live Offers sheet ─────────────
     RECRUITERS.forEach(r => {
       const d = recLive[r.name];
       if (!d) return;
@@ -903,6 +963,7 @@ async function fetchAcceptedOffers() {
         r.declines = Object.entries(d.declReasons).sort((a,b) => b[1]-a[1]);
     });
 
+    // ── Re-render KPIs + health with live data ────────────────────────
     if (total > 0) {
       OFFERS_LIVE_LOADED = true;
       const oar = FALLBACK.baseOAR, rec = FALLBACK.baseRecruiterCount, ppr = FALLBACK.basePPR;
@@ -914,6 +975,7 @@ async function fetchAcceptedOffers() {
       document.getElementById('pillPending').textContent = 'Jun: ' + jun + (jul > 0 ? ' · Jul: ' + jul : '');
     }
 
+    // Re-render funnel with live data in case Chart.js resize event blanked it
     try { renderFunnel(window._livePipelineData || FALLBACK.pipeline); } catch(e) {}
 
     renderTeamAcceptedOffers();
@@ -927,6 +989,7 @@ async function fetchAcceptedOffers() {
   }
 }
 
+// ── Accepted offers table helpers ──────────────────────────────────
 function buildAcceptsTableHTML(accepts, showRecruiter) {
   if (!accepts || accepts.length === 0) return '';
   const rowsHtml = accepts.map((a, ai) => {
@@ -956,6 +1019,7 @@ function buildAcceptsTableHTML(accepts, showRecruiter) {
   </table></div>${showHint ? `<div class="scroll-hint-bar"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 2v6M2 6l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Scroll for more</div>` : ''}`;
 }
 
+// ── Open Headcount Table ──────────────────────────────────────────
 function populateHCFilter(id, values) {
   const sel = document.getElementById(id);
   if (!sel) return;
@@ -970,6 +1034,7 @@ function renderOpenHCTable() {
   const subtitle = document.getElementById('openHCSubtitle');
   if (!tbody) return;
 
+  // Build filter option sets from full dataset
   const orgs    = new Set(data.map(r => r.dept).filter(Boolean));
   const recs    = new Set(data.map(r => r.recruiter).filter(Boolean));
   const levels  = new Set(data.map(r => r.level).filter(Boolean));
@@ -1029,6 +1094,7 @@ function renderOpenHCTable() {
       <td style="padding:5px 10px;white-space:nowrap;font-size:10.5px;color:var(--text2)">${r.startDate || '—'}</td>
     </tr>`).join('');
 
+  // Show scroll hint if content overflows
   const hint = document.getElementById('openHCScrollHint');
   if (hint) hint.style.display = filtered.length > 5 ? 'flex' : 'none';
 }
@@ -1055,11 +1121,13 @@ function renderTeamAcceptedOffers() {
   </div>`;
 }
 
+// ── Main init ──────────────────────────────────────────────────────
 async function init() {
   const now = new Date();
   document.getElementById('updatedTime').textContent =
     `Updated ${now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true})} · ${now.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;
 
+  // ── Apply team branding from window.TEAM_CONFIG ──────────────────
   if (_TC.color) document.documentElement.style.setProperty('--org', _TC.color);
   const $logoSub = document.querySelector('.logo-sub');
   if ($logoSub) $logoSub.textContent = _TC.name + ' Recruiting';
@@ -1070,13 +1138,16 @@ async function init() {
   if ($goalVal) $goalVal.textContent = _TC.goal || 46;
   const $bbGoal = document.getElementById('bbGoal');
   if ($bbGoal) $bbGoal.textContent = _TC.goal || 46;
+  // Update FALLBACK counts to reflect team-specific recruiter count
   FALLBACK.baseRecruiterCount = RECRUITERS.length;
 
+  // ── Render immediately with fallback data so the page is never blocked ──
   document.getElementById('loadingOverlay').style.display = 'none';
 
   const oar = FALLBACK.baseOAR, rec = FALLBACK.baseRecruiterCount, ppr = FALLBACK.basePPR;
   const proj = computeProjection(oar, rec, ppr);
 
+  // Each render is wrapped so a chart failure never blocks tabs from appearing
   try { renderGauge(computeHealth(oar, rec, ppr)); } catch(e) { console.warn('renderGauge:', e); }
   try { updateKPIs(proj); } catch(e) { console.warn('updateKPIs:', e); }
   try { renderProjectionChart(oar, rec, ppr); } catch(e) { console.warn('renderProjectionChart:', e); }
@@ -1091,27 +1162,16 @@ async function init() {
   document.getElementById('footerText').textContent =
     `Gusto Engineering Recruiting · ${daysElapsed}d elapsed (${pctThrough}% of Q1) · ${daysRemaining}d remaining`;
 
+  // Build recruiter tab nav — runs unconditionally
   initTabNav();
 
-  fetchSheetRows('Pipeline Snapshot [PLEASE DO NOT TOUCH]').then(pipeText => {
-    console.log('[Snapshot] txt length:', pipeText ? pipeText.length : 'null');
-    if (!pipeText || pipeText.length < 100) { console.warn('[Snapshot] too short, aborting'); return; }
-    const _previewRows = pipeText.split('\n').slice(0, 10);
-    console.log('[Snapshot] preview rows:', _previewRows);
-    const parsed = parsePipelineSnapshot(pipeText);
-    console.log('[Snapshot] parsed:', parsed ? `weeks=${parsed.weeks.length} rs=${parsed.rs}` : 'null');
-    if (parsed && parsed.weeks.length > 0) {
-      console.log('[Snapshot] loaded OK — weeks:', parsed.weeks, 'latest RS:', parsed.rs.slice(-1)[0]);
-      window._livePipelineData = parsed;
-      renderTrendChart(parsed);
-      renderFunnel(parsed);
-      document.getElementById('footerText').textContent =
-        `🟢 Live · Gusto Engineering Recruiting · ${daysElapsed}d elapsed (${pctThrough}% of Q1) · ${daysRemaining}d remaining`;
-    } else {
-      console.warn('[Snapshot] parsed returned null or empty weeks — pipeText lines:', pipeText.split('\n').slice(0, 12));
-    }
-  }).catch(e => console.error('[Snapshot] fetch failed:', e));
+  // ── Live data fetches run in background and update the page when ready ──
+  // Note: there is no dedicated weekly "Pipeline Snapshot" sheet, so the funnel
+  // is populated from a live aggregate of Current Pipeline per Job (see
+  // fetchPipelinePerJob → buildLiveFunnelSnapshot). The Trend chart still shows
+  // hardcoded fallback data since no historical weekly source exists.
 
+  // Accepted offers — with visible sign-in prompt if auth fails after 20s
   fetchAcceptedOffers();
   setTimeout(() => {
     if (!OFFERS_LIVE_LOADED) {
@@ -1120,11 +1180,16 @@ async function init() {
     }
   }, 20000);
 
+  // Pipeline History PTRs (fetch first so they're ready when recruiter tabs open)
   fetchPipelineHistory();
 
+  // Per-job pipeline (recruiter tabs)
   fetchPipelinePerJob();
 }
 
+// ── Recruiter data (Q1 FY27 actuals from Greenhouse) ──────────────
+// Each team page sets window.TEAM_RECRUITERS before loading this file.
+// Engineering data below is the fallback used when no override is set.
 const RECRUITERS = window.TEAM_RECRUITERS || [
   { name:'Angeline Lo',        goal: 5,  accepted: 1, extended: 2,  oar: 50,
     oarByLevel: { L4:{oar:0,acc:0,ext:1}, L5:{oar:100,acc:1,ext:1} },
@@ -1153,16 +1218,18 @@ const RECRUITERS = window.TEAM_RECRUITERS || [
   { name:'Nicholas Watson',    goal: 5,  accepted: 3, extended: 3,  oar: 100,
     oarByLevel: { L3:{oar:100,acc:1,ext:1}, L4:{oar:100,acc:2,ext:2} },
     declines: [], reqs: [] },
-];
+]; // end Engineering fallback — window.TEAM_RECRUITERS overrides this if set
 
 let recGaugeChart = null;
 let currentRecruiter = null;
-let LIVE_PIPELINE = {};
-let OFFERS_LIVE_LOADED = false;
-window._acceptedOffersList = [];
-window._ghJobIdMap = {};
-window._pipelineHistory = {};
+let LIVE_PIPELINE = {};       // keyed by recruiter name, value: [{name,rs,ia,ir,hc,offer}]
+let OFFERS_LIVE_LOADED = false; // true once fetchAcceptedOffers has updated RECRUITERS from sheet
+window._acceptedOffersList = [];  // full accepted offer records
+window._ghJobIdMap = {};          // reqId → Greenhouse job ID
+window._pipelineHistory = {};     // reqId → { assess, f2f, offer, hired, assessToF2f, f2fToOffer, offerToHire }
 
+// ── Pipeline History PTR fetch ─────────────────────────────────────
+// Columns: Job Name | Requisition ID | Application Review | Recruiter Screen | Interview Round | Hiring Committee | Offer
 async function fetchPipelineHistory() {
   try {
     const txt = await withTimeout(
@@ -1196,15 +1263,16 @@ async function fetchPipelineHistory() {
       const offer = parseInt(row[offCol]) || 0;
       histMap[reqId] = {
         rs, ir, hc, offer,
-        rsToIR:  rs > 0 ? ir    / rs : null,
-        irToHC:  ir > 0 ? hc    / ir : null,
-        hcToOff: hc > 0 ? offer / hc : null,
-        rsToOff: rs > 0 ? offer / rs : null,
+        rsToIR:  rs > 0 ? ir    / rs : null,  // RS → IR
+        irToHC:  ir > 0 ? hc    / ir : null,  // IR → HC
+        hcToOff: hc > 0 ? offer / hc : null,  // HC → Offer
+        rsToOff: rs > 0 ? offer / rs : null,  // RS → Offer (combined)
       };
     }
     window._pipelineHistory = histMap;
     console.log('[PipelineHistory] loaded:', Object.keys(histMap).length, 'reqs');
 
+    // Re-render recruiter tab if open so action items refresh with real PTRs
     if (currentRecruiter && document.getElementById('recruiterView') &&
         document.getElementById('recruiterView').style.display !== 'none') {
       try { renderRecruiterView(currentRecruiter); } catch(e) {}
@@ -1212,14 +1280,17 @@ async function fetchPipelineHistory() {
   } catch(e) { console.error('[PipelineHistory] fetch failed:', e); }
 }
 
+// ── Live pipeline per job fetch ────────────────────────────────────
 async function fetchPipelinePerJob() {
   try {
+    // Fetch both sheets in parallel
     const [pipeTxt, reqTxt] = await Promise.all([
       fetchSheetRows('Current Pipeline per Job'),
       fetchSheetRows('Open Reqs')
     ]);
     if (!pipeTxt || !reqTxt) return;
 
+    // ── Parse Pipeline Per Job ──────────────────────────────────
     const pipeRows = lines(pipeTxt);
     let pHdr = null, pHdrIdx = -1;
     for (let i = 0; i < pipeRows.length; i++) {
@@ -1242,6 +1313,7 @@ async function fetchPipelinePerJob() {
       const reqId = row[pReq];
       if (!reqId || reqId.startsWith('TEST') || !reqId.trim()) continue;
       const jobName = row[pJob] || '';
+      // Skip interns/apprentices
       const jl = jobName.toLowerCase();
       if (/\bintern\b/.test(jl) || /apprentice/.test(jl)) continue;
       pipeByReq[reqId.trim()] = {
@@ -1255,6 +1327,7 @@ async function fetchPipelinePerJob() {
       };
     }
 
+    // ── Parse Open Reqs for recruiter assignments ───────────────
     const reqRows2 = lines(reqTxt);
     let rHdr = null, rHdrIdx = -1;
     for (let i = 0; i < reqRows2.length; i++) {
@@ -1284,7 +1357,9 @@ async function fetchPipelinePerJob() {
       const status   = row[rStatCol] || '';
       const ghJobId  = rJobIdCol >= 0 ? (row[rJobIdCol] || '').toString().trim() : '';
       if (!reqId) continue;
+      // Always build ghJobId map for ALL reqs (including closed) so accepted offers get links
       if (ghJobId) window._ghJobIdMap[reqId] = ghJobId;
+      // Capture ALL open reqs for the headcount table (exclude E-reqs, regardless of pipeline entry)
       if (status === 'Open' && !reqId.startsWith('E')) {
         window._openReqsData.push({
           reqId,
@@ -1299,6 +1374,7 @@ async function fetchPipelinePerJob() {
           startDate: (row[rStartDateCol] || '').trim(),
         });
       }
+      // Only add to live pipeline for open reqs with a known recruiter and pipeline entry
       if (status !== 'Open' || !recruiter) continue;
       const pipe = pipeByReq[reqId];
       if (!pipe) continue;
@@ -1311,16 +1387,49 @@ async function fetchPipelinePerJob() {
     console.log('[Pipeline] sample LIVE_PIPELINE:', JSON.stringify(liveByRec).slice(0, 400));
     LIVE_PIPELINE = liveByRec;
 
+    // ── Build a live funnel snapshot from Current Pipeline per Job ──────
+    // There's no historical weekly sheet, so this aggregates *current* stage
+    // counts across this team's open reqs (via LIVE_PIPELINE) into the same
+    // shape renderFunnel() expects — gives a real, live funnel instead of the
+    // frozen FALLBACK.pipeline numbers. (Trend chart still uses fallback —
+    // no weekly history exists to build a real trend from.)
+    const agg = { rs:0, ia:0, ir:0, hc:0, offer:0 };
+    let openJobsCount = 0;
+    RECRUITERS.forEach(r => {
+      const reqs = LIVE_PIPELINE[r.name] || [];
+      openJobsCount += reqs.length;
+      reqs.forEach(req => {
+        agg.rs    += req.rs    || 0;
+        agg.ia    += req.ia    || 0;
+        agg.ir    += req.ir    || 0;
+        agg.hc    += req.hc    || 0;
+        agg.offer += req.offer || 0;
+      });
+    });
+    const nowLabel = `Week of ${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;
+    const liveSnapshot = {
+      weeks: [nowLabel], rs: [agg.rs], ia: [agg.ia], ir: [agg.ir], hc: [agg.hc], offer: [agg.offer], openJobs: [openJobsCount]
+    };
+    window._livePipelineData = liveSnapshot;
+    try { renderFunnel(liveSnapshot); } catch(e) { console.warn('[Pipeline] renderFunnel from live snapshot failed:', e); }
+    const footerEl = document.getElementById('footerText');
+    if (footerEl) footerEl.textContent =
+      `🟢 Live · ${_TC.name} Recruiting · ${daysElapsed}d elapsed (${pctThrough}% of Q1) · ${daysRemaining}d remaining`;
+
+    // Render open headcount table
     renderOpenHCTable();
 
+    // Re-render accepted offers table now that _ghJobIdMap is populated
     renderTeamAcceptedOffers();
 
+    // Re-render the current recruiter tab if one is open
     if (currentRecruiter && document.getElementById('recruiterView').style.display !== 'none') {
       try { renderRecruiterView(currentRecruiter); } catch(e) { console.error('renderRecruiterView after pipeline:', e); }
     }
   } catch(e) { console.error('[Pipeline] fetchPipelinePerJob failed:', e); }
 }
 
+// ── Pipeline data refresh ──────────────────────────────────────────
 async function refreshPipelineData(btnEl) {
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = '↺ Refreshing…'; }
   _appsScriptCache = null;
@@ -1334,6 +1443,7 @@ async function refreshPipelineData(btnEl) {
   if (currentRecruiter) try { renderRecruiterView(currentRecruiter); } catch(e) {}
 }
 
+// ── Tab navigation ─────────────────────────────────────────────────
 function initTabNav() {
   const nav = document.getElementById('tabNav');
   nav.innerHTML =
@@ -1360,13 +1470,16 @@ function switchTab(nameOrIdx, el) {
   }
 }
 
+// ── Per-recruiter health & projection ─────────────────────────────
 function recruiterHealth(r) {
+  // Use projected total (accepted + pipeline) for goal score — reflects where they'll end up
   const projected = recruiterProjected(r);
   const goalScore = Math.min(50, 50 * Math.min(1, projected / r.goal));
   const oarScore  = Math.min(30, 30 * (r.oar / 95));
   const pipeScore = 20;
   return Math.round(goalScore + oarScore + pipeScore);
 }
+// ── Global PTR helpers (used by recruiterProjected + renderRecruiterView) ──
 const BENCH3 = { rsToIR: 0.18, irToHC: 0.50, hcToOff: 0.85 };
 
 function reqPT(req) {
@@ -1396,19 +1509,32 @@ function projectedOffersFromPipe(req) {
 }
 
 function recruiterProjected(r) {
+  // If live pipeline data is loaded, use funnel-based projection (candidates × PTRs)
+  // This matches what the pipeline per req section shows and is more accurate.
   const liveReqs = LIVE_PIPELINE[r.name];
   if (liveReqs && liveReqs.length > 0) {
     const pipeTotal = liveReqs.reduce((s, req) => s + projectedOffersFromPipe(req), 0);
     return parseFloat((r.accepted + pipeTotal).toFixed(1));
   }
+  // Fallback: pace-based extrapolation when pipeline data isn't loaded yet
   if (daysElapsed <= 0) return r.accepted;
   const monthlyPace = r.accepted / (daysElapsed / 30);
   return r.accepted + Math.round(monthlyPace * monthsLeft);
 }
 
+// ── Predictive analysis action items ──────────────────────────────
+// Pipeline History columns (updated):
+//   Application Review → Recruiter Screen → Interview Round → Hiring Committee → Offer
+// Live pipeline stages: RS, IA, IR, HC, Offer
+//   RS+IA → use rsToIR rate (both in pre-interview screening)
+//   IR    → use irToHC * hcToOff
+//   HC    → use hcToOff
+//   Offer → count as projected offer (multiply by OAR for acceptance)
 function buildPredictiveInsight(r, liveReqs) {
   const needed = Math.max(0, r.goal - r.accepted);
+  // Bench PTRs (fallbacks only when no historical data)
   const B = { rsToIR: 0.18, irToHC: 0.50, hcToOff: 0.85 };
+  // Bench RS→Offer = 0.18 * 0.50 * 0.85 ≈ 7.65% → ~13 RS per offer
 
   if (needed === 0) {
     return `<div class="pred-item"><span class="pred-icon">🎉</span><div class="pred-text"><strong>Goal achieved!</strong> ${r.accepted}/${r.goal} hires confirmed — focus on smooth onboarding for pending starts.</div></div>`;
@@ -1419,24 +1545,33 @@ function buildPredictiveInsight(r, liveReqs) {
   const hasHist = Object.keys(hist).length > 0;
   const oar     = r.oar ? r.oar / 100 : 0.90;
 
+  // ── Step 1: Fleet rate from reqs that have actually produced offers ──
+  // Only reqs with offer ≥ 1 AND rs ≥ 5 have meaningful RS→Offer data.
+  // Using offer/rs directly avoids compounding errors across 3 multiplied rates.
   const offerReqs = reqs.filter(q => (hist[q.reqId]?.offer || 0) >= 1 && (hist[q.reqId]?.rs || 0) >= 5);
   const fleetRS   = offerReqs.reduce((s, q) => s + hist[q.reqId].rs,    0);
   const fleetOff  = offerReqs.reduce((s, q) => s + hist[q.reqId].offer, 0);
+  // Fleet RS→Offer rate (e.g. 33 offers from 520 RS = 6.3%)
   const fleetRsToOff  = fleetRS > 0 && fleetOff > 0 ? fleetOff / fleetRS : B.rsToIR * B.irToHC * B.hcToOff;
-  const rsPerOffer    = fleetRsToOff > 0 ? Math.round(1 / fleetRsToOff) : 14;
+  const rsPerOffer    = fleetRsToOff > 0 ? Math.round(1 / fleetRsToOff) : 14; // e.g. ~16 RS per offer
+  // Fleet IR→HC and HC→Offer for mid/late-stage projections
   const fleetHistIR   = offerReqs.reduce((s, q) => s + hist[q.reqId].ir,    0);
   const fleetHistHC   = offerReqs.reduce((s, q) => s + hist[q.reqId].hc,    0);
   const fleetIrToHC   = fleetHistIR  > 0 ? fleetHistHC  / fleetHistIR  : B.irToHC;
   const fleetHcToOff  = fleetHistHC  > 0 ? fleetOff     / fleetHistHC  : B.hcToOff;
 
+  // ── Step 2: Per-req projection using historical rates where available ──
   let totalProjOffers = 0;
   const reqBreakdowns = [];
 
   for (const req of reqs) {
     const h = hist[req.reqId] || {};
 
+    // RS→Offer: use req's direct historical rate if it has produced offers; else fleet avg
     const reqRsToOff = (h.offer >= 1 && h.rs >= 5) ? h.rsToOff : fleetRsToOff;
+    // IR→HC: use req's rate if ≥2 IR; else fleet
     const irToHC  = (h.irToHC  != null && h.ir >= 2) ? h.irToHC  : fleetIrToHC;
+    // HC→Offer: use req's rate if ≥1 HC and ≥1 offer (avoid 0% from reqs with no offers yet)
     const hcToOff = (h.hcToOff != null && h.hc >= 1 && h.offer >= 1) ? h.hcToOff : fleetHcToOff;
 
     const rs  = req.rs    || 0;
@@ -1461,13 +1596,14 @@ function buildPredictiveInsight(r, liveReqs) {
 
   const pipeGap   = Math.max(0, needed - totalProjOffers);
   const addlRS    = Math.ceil(pipeGap * rsPerOffer);
-  const totalRS   = Math.ceil(needed * rsPerOffer);
+  const totalRS   = Math.ceil(needed * rsPerOffer); // total RS to hit goal from scratch
   const dataLabel = offerReqs.length > 0
     ? `~${rsPerOffer} RS per offer (${fleetOff} offers from ${fleetRS} RS across ${offerReqs.length} req${offerReqs.length !== 1 ? 's' : ''})`
     : `~${rsPerOffer} RS per offer (benchmark)`;
 
   const items = [];
 
+  // 1 — Sourcing gap
   if (pipeGap > 0.3) {
     items.push({ icon: '🎯', badge: 'HIGH PRIORITY', badgeCls: 'pred-badge-high',
       text: `<strong>Source ~${addlRS} more Recruiter Screen${addlRS !== 1 ? 's' : ''} to close the gap</strong> — current pipeline projects <strong>${totalProjOffers.toFixed(1)}</strong> more offers vs. <strong>${needed}</strong> needed. <span style="color:var(--text2)">${dataLabel}.</span>` });
@@ -1476,11 +1612,13 @@ function buildPredictiveInsight(r, liveReqs) {
       text: `<strong>Pipeline projects ${totalProjOffers.toFixed(1)} more offers</strong> — covers the ${needed}-hire gap. Focus on protecting late-stage quality. <span style="color:var(--text2)">${dataLabel}.</span>` });
   }
 
+  // 2 — RS needed to hit full goal (context item)
   if (needed > 0 && rsPerOffer > 0) {
     items.push({ icon: '📊', badge: 'CONTEXT', badgeCls: 'pred-badge-action',
       text: `<strong>${rsPerOffer} RS needed per offer</strong> based on your req mix — to make ${needed} more hire${needed !== 1 ? 's' : ''} entirely from new RS, you'd need ~${totalRS} more screens. Late-stage candidates (HC/IR) reduce that need significantly.` });
   }
 
+  // 3 — Weakest IR→HC per req with live IR candidates
   const weakIrToHC = reqBreakdowns
     .filter(q => q.hasData && q.h.ir >= 3 && q.irToHC < fleetIrToHC * 0.65 && (q.ir + q.hc) > 0)
     .sort((a, b) => a.irToHC - b.irToHC)[0];
@@ -1489,6 +1627,7 @@ function buildPredictiveInsight(r, liveReqs) {
       text: `<strong>${weakIrToHC.name}: ${Math.round(weakIrToHC.irToHC*100)}% IR→HC</strong> — below your ${Math.round(fleetIrToHC*100)}% fleet avg. ${weakIrToHC.ir} mid-funnel candidates stalling. Audit debrief speed and panel availability.` });
   }
 
+  // 4 — Weakest HC→Offer per req with live HC candidates
   const weakHcToOff = reqBreakdowns
     .filter(q => q.hasData && q.h.hc >= 2 && q.hcToOff < fleetHcToOff * 0.70 && q.hc > 0)
     .sort((a, b) => a.hcToOff - b.hcToOff)[0];
@@ -1497,24 +1636,28 @@ function buildPredictiveInsight(r, liveReqs) {
       text: `<strong>${weakHcToOff.name}: ${Math.round(weakHcToOff.hcToOff*100)}% HC→Offer</strong> — below ${Math.round(fleetHcToOff*100)}% fleet avg. ${weakHcToOff.hc} HC candidate${weakHcToOff.hc !== 1 ? 's' : ''} at risk. Validate comp band with HM before panel debrief.` });
   }
 
+  // 5 — Quick win: HC candidates
   const totHC = reqs.reduce((s, q) => s + (q.hc || 0), 0);
   if (totHC > 0) {
     items.push({ icon: '⚡', badge: 'QUICK WIN', badgeCls: 'pred-badge-action',
       text: `<strong>Push ${totHC} HC-stage candidate${totHC !== 1 ? 's' : ''} to offer</strong> — highest-probability close. Prep comp approvals and offer letters now.` });
   }
 
+  // 6 — Advance IR candidates
   const totIR = reqs.reduce((s, q) => s + (q.ir || 0), 0);
   if (totIR >= 2) {
     items.push({ icon: '→', badge: 'ACTION', badgeCls: 'pred-badge-action',
       text: `<strong>Advance ${totIR} IR candidate${totIR !== 1 ? 's' : ''} to HC</strong> — schedule debriefs and panels this week.` });
   }
 
+  // 7 — OAR risk
   if (r.oar < 75 && r.extended > 0) {
     const lost = r.extended - r.accepted;
     items.push({ icon: '⚠️', badge: 'RISK', badgeCls: 'pred-badge-high',
       text: `<strong>Fix ${r.oar}% OAR</strong> — ${lost} offer${lost !== 1 ? 's' : ''} declined. Validate comp with HM before next offer.` });
   }
 
+  // 8 — Deadline
   if (daysRemaining <= 50 && needed > 0) {
     items.push({ icon: '📅', badge: 'DEADLINE', badgeCls: 'pred-badge-warn',
       text: `<strong>${daysRemaining} days left in Q1</strong> — factor 2–3 week offer-to-start lag. RS started this week won't convert before mid-July without fast-tracking.` });
@@ -1528,6 +1671,7 @@ function buildPredictiveInsight(r, liveReqs) {
     </div>`).join('');
 }
 
+// ── Recruiter view renderer ────────────────────────────────────────
 function renderRecruiterView(r) {
   currentRecruiter = r;
   const health    = recruiterHealth(r);
@@ -1539,6 +1683,7 @@ function renderRecruiterView(r) {
   const barColor  = pct >= 80 ? '#00B094' : pct >= 50 ? '#F5A623' : '#F45D48';
   const projColor = projected >= r.goal ? '#00B094' : projected >= r.goal * 0.75 ? '#F5A623' : '#F45D48';
 
+  // OAR by level
   let oarHtml = '';
   const levels = Object.keys(r.oarByLevel);
   if (levels.length === 0) {
@@ -1558,6 +1703,7 @@ function renderRecruiterView(r) {
     });
   }
 
+  // Decline reasons
   let declHtml = '';
   if (r.declines.length === 0) {
     declHtml = `<div style="padding:20px 0;text-align:center;color:var(--green);font-size:12px;font-weight:600">✓ No Q1 declines</div>`;
@@ -1586,7 +1732,7 @@ function renderRecruiterView(r) {
   const isLive       = liveReqs && liveReqs.length > 0;
 
   const pipeOnlyTotal = (liveReqs || r.reqs).reduce((s, req) => s + projectedOffersFromPipe(req), 0);
-  const totalProjAll  = pipeOnlyTotal;
+  const totalProjAll  = pipeOnlyTotal; // pipeline-only (no accepted) — used for gap/insight calcs
   const remainingGap  = Math.max(0, hiresNeeded - totalProjAll);
 
   const STAGE_COLORS = {
@@ -1680,6 +1826,7 @@ function renderRecruiterView(r) {
             </tr>`).join('')
         : `<tr><td colspan="7" style="color:var(--text2);font-size:11px;padding:14px 0;text-align:center;font-style:italic">No open reqs found — data loading or no active reqs assigned</td></tr>`);
 
+  // OAR analysis note
   const oarNote = r.oar < 70
     ? `<div class="analysis-note risk"><strong>⚠ At risk:</strong> ${r.oar}% OAR — below 75% threshold. ${r.declines.map(([n,c]) => `${c} ${n.toLowerCase()} decline${c>1?'s':''}`).join(', ')}.${r.declines.length ? ' Comp is the driver.' : ''}</div>`
     : r.oar >= 90
@@ -1694,6 +1841,7 @@ function renderRecruiterView(r) {
     </div>
 
     <div class="rec-status-card">
+      <!-- Header: Health Score -->
       <div class="rec-status-header">
         <div class="rec-health-block">
           <div class="rec-health-score-big" style="color:${hColor}">${health}</div>
@@ -1719,7 +1867,9 @@ function renderRecruiterView(r) {
         <div style="flex:1"></div>
         <canvas id="recGaugeCanvas" style="display:none"></canvas>
       </div>
+      <!-- Metric blocks -->
       <div class="rec-status-metrics">
+        <!-- Q1 Goal -->
         <div class="rec-metric-block" style="border-top: 3px solid ${barColor}">
           <div class="rec-metric-label">Q1 Goal</div>
           <div class="rec-metric-value" style="color:var(--text)">${r.goal}</div>
@@ -1728,12 +1878,14 @@ function renderRecruiterView(r) {
           <div class="goal-pct" style="color:${barColor};margin-top:3px">${OFFERS_LIVE_LOADED ? pct+'% confirmed' : '– pending data'}</div>
           <div class="rec-metric-note">${OFFERS_LIVE_LOADED ? `${r.accepted} accepted · ${Math.max(0,r.goal-r.accepted)} more needed` : '– accepted · loading…'}</div>
         </div>
+        <!-- Accepted Offers -->
         <div class="rec-metric-block" style="border-top: 3px solid var(--green)">
           <div class="rec-metric-label">Accepted Offers</div>
           <div class="rec-metric-value" style="color:var(--green)">${OFFERS_LIVE_LOADED ? r.accepted : '–'}</div>
           <div class="rec-metric-sub">Q1 · FTE only · excl. interns</div>
           <div class="rec-metric-note">${OFFERS_LIVE_LOADED ? `${r.accepted} accepted of ${r.extended} extended` : 'Loading from Greenhouse…'}</div>
         </div>
+        <!-- OAR -->
         ${OFFERS_LIVE_LOADED ? `
         <div class="rec-metric-block" style="border-top: 3px solid ${r.oar >= 90 ? 'var(--green)' : r.oar >= 75 ? 'var(--yellow)' : 'var(--red)'}">
           <div class="rec-metric-label">OAR</div>
@@ -1748,6 +1900,7 @@ function renderRecruiterView(r) {
           <div class="rec-metric-sub">Pending live data</div>
           <div class="analysis-note" style="margin-top:6px;font-size:10px">Loading from Greenhouse…</div>
         </div>`}
+        <!-- FTE Projected -->
         <div class="rec-metric-block" style="border-top: 3px solid ${OFFERS_LIVE_LOADED ? projColor : 'var(--border)'}">
           <div class="rec-metric-label">FTE Projected</div>
           <div class="rec-metric-value" style="color:${OFFERS_LIVE_LOADED ? projColor : 'var(--text2)'}">${OFFERS_LIVE_LOADED ? projected.toFixed(1) : '–'}</div>
@@ -1801,6 +1954,7 @@ function renderRecruiterView(r) {
         <div class="rec-section-title">⚡ Recruiter Playbook</div>
 
         ${(() => {
+          // ── Quarter Pulse ──
           const paceStatus = projected >= r.goal * 0.85 ? 'on-track'
                            : projected >= r.goal * 0.6  ? 'watch' : 'behind';
           const paceColor  = paceStatus === 'on-track' ? 'var(--green)' : paceStatus === 'watch' ? 'var(--yellow)' : 'var(--red)';
@@ -1808,11 +1962,13 @@ function renderRecruiterView(r) {
           const paceBorder = paceStatus === 'on-track' ? 'rgba(0,176,148,0.28)' : paceStatus === 'watch' ? 'rgba(245,166,35,0.32)' : 'rgba(244,93,72,0.28)';
           const paceLabel  = paceStatus === 'on-track' ? '✓ On Pace' : paceStatus === 'watch' ? '⚠ Needs Push' : '↓ Behind';
 
+          // ── Win Now — reqs with candidates deepest in funnel ──
           const deepReqs = (liveReqs || [])
             .filter(req => (req.hc||0) + (req.ir||0) > 0)
             .sort((a, b) => ((b.hc||0)*4 + (b.ir||0)*2 + (b.ia||0)) - ((a.hc||0)*4 + (a.ir||0)*2 + (a.ia||0)))
             .slice(0, 3);
 
+          // ── Funnel health — recruiter avg rates vs bench ──
           const histRates = (liveReqs||[]).map(req => (window._pipelineHistory||{})[req.reqId]).filter(h => h && h.rs >= 5);
           const avgOf = (arr, key, minKey, minVal) => {
             const valid = arr.filter(h => h[minKey] >= minVal && h[key] != null);
@@ -1830,6 +1986,7 @@ function renderRecruiterView(r) {
             ? stageComps.reduce((w, s) => (s.val / s.bench < w.val / w.bench ? s : w))
             : null;
 
+          // ── Action Alerts ──
           const alerts = [];
           if (remainingGap >= 1.5) {
             const topRS = (liveReqs||[]).sort((a,b)=>(b.rs||0)-(a.rs||0))[0];
@@ -1932,6 +2089,7 @@ function renderRecruiterView(r) {
     </div>
   `;
 
+  // Render mini health gauge
   if (recGaugeChart) { recGaugeChart.destroy(); recGaugeChart = null; }
   const gaugeEl = document.getElementById('recGaugeCanvas');
   if (gaugeEl) {
@@ -1942,9 +2100,11 @@ function renderRecruiterView(r) {
     });
   }
 
+  // Screen effect based on health score
   setTimeout(() => triggerHealthEffect(health, r.name), 200);
 }
 
+// ── Insight toggle ─────────────────────────────────────────────────
 function toggleInsight(id) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -1957,6 +2117,7 @@ function toggleInsight(id) {
   }
 }
 
+// ── Req table helpers ──────────────────────────────────────────────
 function addReqRow() {
   if (!currentRecruiter) return;
   currentRecruiter.reqs.push({ name:'', rs:0, ia:0, ir:0, hc:0, offer:0 });
@@ -1972,6 +2133,7 @@ function updateReqData(idx, field, val) {
   currentRecruiter.reqs[idx][field] = field === 'name' ? val : (parseInt(val) || 0);
 }
 
+// ── Health Score Screen Effects ────────────────────────────────────
 let _lastEffectKey = null;
 
 function triggerHealthEffect(score, recruiterName, bigMode) {
@@ -2015,6 +2177,7 @@ function _launchConfetti(score, bigMode) {
     shape: shapes[Math.floor(Math.random()*shapes.length)],
     alpha: 1,
   }));
+  // Extra burst from center-top for big mode
   if (bigMode) {
     const cx = canvas.width / 2;
     for (let i = 0; i < 80; i++) {
@@ -2077,6 +2240,7 @@ function _launchWarning(level, score) {
   const accent = isRed ? '#F45D48' : '#F5A623';
   const label  = isRed ? `🚨 ${score} — Needs attention` : `⚠️ ${score} — Worth watching`;
 
+  // Full-screen edge overlay
   const ov = document.createElement('div');
   ov.id = '__he-overlay';
   ov.style.cssText = `position:fixed;inset:0;pointer-events:none;z-index:9990;border:3px solid ${accent};
@@ -2103,6 +2267,8 @@ function _showBadge(icon, text, color) {
   setTimeout(() => b.remove(), 3200);
 }
 
+// Fire init immediately if DOM already ready (common in sandboxed iframes),
+// otherwise wait for DOMContentLoaded
 if (document.readyState === 'loading') {
   window.addEventListener('DOMContentLoaded', init);
 } else {
