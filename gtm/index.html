@@ -7,124 +7,463 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Song+Myung&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
 <style>
-:root { --coral:#F45D48; --ink:#222525; --ink-60:#6C6C72; --ink-20:#EAEAEA; --bg:#F8F5F2; --white:#FFFFFF; --teal:#0A8080; --dark-teal:#005961; --green:#0A8080; --green-lt:#E0F2F5; --amber:#D97706; --amber-lt:#FFFAF2; --red:#D93025; --red-lt:#FFF3EF; --purple:#6B55D6; --purple-lt:#EAE7FA; --yellow:#D97706; --shadow:0 1px 3px rgba(34,37,37,.06); --border:1px solid #EAEAEA; --radius:20px; --org:#F45D48; }
+:root {
+  --coral:    #F45D48;
+  --ink:      #222525;
+  --ink-60:   #6C6C72;
+  --ink-20:   #EAEAEA;
+  --bg:       #F8F5F2;
+  --white:    #FFFFFF;
+  --teal:     #0A8080;
+  --dark-teal:#005961;
+  --green:    #0A8080;
+  --green-lt: #E0F2F5;
+  --amber:    #D97706;
+  --amber-lt: #FFFAF2;
+  --red:      #D93025;
+  --red-lt:   #FFF3EF;
+  --purple:   #6B55D6;
+  --purple-lt:#EAE7FA;
+  --yellow:   #D97706;
+  --shadow:   0 1px 3px rgba(34,37,37,.06);
+  --border:   1px solid #EAEAEA;
+  --radius:   20px;
+  --org:      #F45D48;
+  --bg2:      #FFFFFF;
+  --bg3:      #F8F5F2;
+  --text:     #222525;
+  --text2:    #6C6C72;
+  --accent:   #F45D48;
+  --accent-faint: rgba(244,93,72,.08);
+}
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family:'Nunito',sans-serif; background:var(--bg); color:var(--ink); font-size:14px; min-height:100vh; padding-bottom:120px; }
-header { background:var(--white); border-bottom:1px solid var(--ink-20); padding:0 28px; display:flex; align-items:center; justify-content:space-between; height:60px; position:sticky; top:0; z-index:200; box-shadow:0 1px 0 var(--ink-20); }
-.logo { display:flex; align-items:center; gap:12px; }
-.logo-mark { width:32px; height:32px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.logo-text { font-size:18px; font-weight:900; letter-spacing:-.5px; color:var(--coral); }
-.logo-sep { color:var(--ink-20); font-weight:300; font-size:20px; margin:0 4px; }
-.logo-sub { font-size:13px; font-weight:600; color:var(--ink-60); }
-.header-right { display:flex; align-items:center; gap:12px; }
-.as-of { font-size:12px; color:var(--ink-60); }
-.live-badge { background:linear-gradient(135deg,var(--coral) 0%,#F5895A 100%); color:#fff; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
-.tab-nav { background:var(--white); border-bottom:1px solid var(--ink-20); padding:10px 28px; display:flex; align-items:center; gap:6px; position:sticky; top:60px; z-index:190; overflow-x:auto; }
-.container { max-width:1060px; margin:0 auto; padding:0 48px 40px; }
-.org-banner { padding:28px 0 22px; border-bottom:2px solid var(--ink-20); margin-bottom:20px; }
-.org-banner-eyebrow { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.8px; color:var(--org); margin-bottom:10px; }
-.org-banner-name { font-family:'Song Myung',Georgia,serif; font-size:46px; font-weight:400; color:var(--ink); line-height:1.1; margin-bottom:8px; }
-.org-banner-sub { font-size:15px; color:var(--ink-60); }
-.insight-strip { display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
-.insight-chip { flex:1; min-width:180px; display:flex; align-items:center; gap:10px; background:var(--white); border:var(--border); border-radius:12px; padding:11px 14px; box-shadow:var(--shadow); }
-.insight-chip.risk { border-left:4px solid var(--red); }
-.insight-chip.win { border-left:4px solid var(--teal); }
-.insight-chip.watch { border-left:4px solid var(--amber); }
-.insight-icon { font-size:16px; flex-shrink:0; }
-.insight-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:1.2px; margin-bottom:2px; }
-.insight-chip.risk .insight-label { color:var(--red); }
-.insight-chip.win .insight-label { color:var(--teal); }
-.insight-chip.watch .insight-label { color:var(--amber); }
-.insight-text { font-size:12.5px; color:var(--ink); font-weight:700; }
-.insight-sub { display:none; }
-.health-card { background:var(--white); border-radius:var(--radius); padding:20px 24px; border:var(--border); box-shadow:var(--shadow); display:flex; align-items:center; gap:20px; margin-bottom:16px; flex-wrap:wrap; }
-.gauge-wrap { position:relative; width:100px; height:60px; flex-shrink:0; }
-.gauge-value { font-size:30px; font-weight:900; text-align:center; letter-spacing:-1px; }
-.gauge-desc { font-size:11px; color:var(--ink-60); }
-.health-divider { width:1px; background:var(--ink-20); align-self:stretch; flex-shrink:0; }
-.health-note { font-size:12px; color:var(--ink-60); line-height:1.6; }
-.health-proj { font-size:10px; color:var(--ink-60); text-align:right; margin-left:auto; line-height:1.6; }
-.kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:16px; }
-.kpi { background:var(--white); border-radius:var(--radius); padding:16px 18px; border:var(--border); box-shadow:var(--shadow); display:flex; flex-direction:column; }
-.kpi-header-row { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:10px; }
-.kpi-icon-circle { width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.kpi-sparkline-svg { width:64px; height:26px; flex-shrink:0; }
-.kpi-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.2px; color:var(--ink-60); margin-bottom:2px; }
-.kpi-value { font-size:36px; font-weight:900; line-height:1; color:var(--ink); letter-spacing:-1.5px; margin-bottom:5px; }
-.kpi-sub { font-size:11px; color:var(--ink-60); display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin-bottom:4px; }
-.kpi-note { font-size:10px; color:var(--ink-60); opacity:.85; }
-.goal-bar-wrap { background:var(--ink-20); border-radius:4px; height:4px; overflow:hidden; margin-top:2px; margin-bottom:4px; }
-.goal-bar { height:100%; border-radius:4px; background:var(--teal); }
-.goal-pct { font-size:11px; font-weight:700; }
-.offers-sub { display:flex; gap:6px; flex-wrap:wrap; }
-.offers-pill { font-size:10px; padding:2px 9px; border-radius:20px; font-weight:700; }
-.pill-green { background:var(--green-lt); color:var(--teal); }
-.pill-blue { background:var(--purple-lt); color:var(--purple); }
-.card { background:var(--white); border-radius:var(--radius); padding:18px 20px; border:var(--border); box-shadow:var(--shadow); }
-.card-title { font-family:'Song Myung',Georgia,serif; font-size:15px; font-weight:400; color:var(--ink); display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
-.card-title span { font-size:11px; color:var(--ink-60); font-weight:400; font-family:'Nunito',sans-serif; }
-.mid-row { display:grid; grid-template-columns:1.5fr 1fr; gap:16px; margin-bottom:16px; }
-.bottom-row { margin-bottom:16px; }
-.hist-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
-.decline-row { display:grid; grid-template-columns:1.4fr 1fr; gap:16px; margin-bottom:16px; }
-.whatif-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-bottom:16px; }
-.chart-container { position:relative; width:100%; }
-canvas { display:block; }
-#bgCanvas { max-height:none !important; width:100% !important; height:100% !important; }
-.chart-container canvas { display:block; width:100% !important; }
-.scenario-tabs { display:flex; gap:5px; }
-.scenario-tab { padding:5px 11px; border-radius:100px; font-size:11px; font-weight:700; cursor:pointer; border:1.5px solid var(--ink-20); background:transparent; color:var(--ink-60); font-family:'Nunito',sans-serif; }
-.scenario-tab.pessimistic.active { border-color:var(--red); color:var(--red); background:var(--red-lt); }
-.scenario-tab.base.active { border-color:var(--coral); color:var(--coral); background:rgba(244,93,72,.06); }
-.scenario-tab.optimistic.active { border-color:var(--teal); color:var(--teal); background:var(--green-lt); }
-.whatif-card { background:var(--white); border:var(--border); border-radius:var(--radius); padding:20px 22px; box-shadow:var(--shadow); }
-.slider-label { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
-.slider-name { font-size:12px; font-weight:700; color:var(--ink); }
-.slider-val { font-size:20px; font-weight:900; color:var(--coral); letter-spacing:-.5px; }
-input[type="range"] { width:100%; -webkit-appearance:none; appearance:none; height:6px; border-radius:3px; background:var(--ink-20); outline:none; margin-bottom:6px; }
-input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:20px; height:20px; border-radius:50%; background:var(--coral); cursor:pointer; border:2px solid var(--white); box-shadow:0 1px 4px rgba(0,0,0,.2); }
-.slider-minmax { display:flex; justify-content:space-between; font-size:10px; color:var(--ink-60); }
-.slider-impact { font-size:11px; color:var(--ink-60); margin-top:6px; }
-.projection-result { background:var(--white); border:var(--border); border-radius:var(--radius); padding:20px 24px; margin-bottom:16px; box-shadow:var(--shadow); }
-.proj-title { font-family:'Song Myung',Georgia,serif; font-size:15px; color:var(--ink); margin-bottom:14px; }
-.proj-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--ink-20); border-radius:12px; overflow:hidden; }
-.proj-item { background:var(--bg); padding:16px; text-align:center; }
-.proj-item-val { font-size:24px; font-weight:900; letter-spacing:-.5px; line-height:1; }
-.proj-item-label { font-size:10px; color:var(--ink-60); margin-top:5px; font-weight:700; text-transform:uppercase; }
-.oar-row { display:flex; flex-direction:column; gap:8px; }
-.oar-item { display:flex; align-items:center; gap:10px; }
-.oar-item-label { width:24px; font-size:11px; font-weight:700; color:var(--ink-60); }
-.oar-item-bar-wrap { flex:1; background:rgba(0,0,0,.05); border-radius:4px; height:18px; overflow:hidden; }
-.oar-item-bar { height:100%; border-radius:4px; display:flex; align-items:center; padding-left:6px; font-size:10px; font-weight:700; color:#fff; }
-.oar-item-val { width:38px; font-size:11px; font-weight:700; text-align:right; }
-.analysis-note { margin-top:10px; padding:8px 10px; background:rgba(217,119,6,.07); border-left:3px solid rgba(217,119,6,.45); border-radius:0 6px 6px 0; font-size:10px; line-height:1.5; color:var(--ink-60); }
-.analysis-note strong { color:#C47A0A; }
-.analysis-note.risk { background:rgba(217,48,37,.07); border-left-color:rgba(217,48,37,.45); }
-.analysis-note.risk strong { color:var(--red); }
-.insight-callout { background:rgba(244,93,72,.07); border:1px solid rgba(244,93,72,.25); border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:12px; line-height:1.5; }
-.insight-callout strong { color:var(--coral); }
-.risks-row { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
-.scroll-table-wrap { position:relative; max-height:220px; overflow-y:auto; overflow-x:auto; border-radius:10px; border:1px solid var(--ink-20); }
-.req-table { width:100%; border-collapse:collapse; font-size:11.5px; }
-.req-table th { text-align:left; padding:5px 10px; color:var(--ink-60); font-weight:700; font-size:9.5px; text-transform:uppercase; border-bottom:1px solid var(--ink-20); background:var(--bg); position:sticky; top:0; }
-.req-table td { padding:5px 10px; border-bottom:1px solid rgba(0,0,0,.04); vertical-align:middle; }
-.health-info-btn { width:14px; height:14px; border-radius:50%; background:var(--ink-20); border:none; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; font-size:9px; font-weight:900; color:var(--ink-60); flex-shrink:0; position:relative; font-style:normal; font-family:'Nunito',sans-serif; }
-.health-info-btn:hover { background:var(--ink); color:var(--white); }
-.health-tooltip { position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%); width:240px; background:var(--ink); color:var(--white); border-radius:10px; padding:10px 12px; font-size:11px; line-height:1.6; font-weight:500; z-index:9999; pointer-events:none; opacity:0; transition:opacity .15s; white-space:normal; box-shadow:0 4px 16px rgba(0,0,0,.25); }
-.health-tooltip::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%); border:5px solid transparent; border-top-color:var(--ink); }
-.health-info-btn:hover .health-tooltip, .health-info-btn:focus .health-tooltip { opacity:1; }
-#bottomBar { position:fixed; bottom:0; left:0; right:0; background:var(--ink); color:white; height:54px; display:flex; align-items:center; justify-content:center; gap:44px; z-index:300; overflow-x:auto; }
-.bb-stat { display:flex; align-items:center; gap:10px; flex-shrink:0; }
-.bb-val { font-size:18px; font-weight:900; letter-spacing:-.5px; }
-.bb-lbl { font-size:10px; font-weight:700; text-transform:uppercase; opacity:.5; }
-.bb-sep { width:1px; height:24px; background:rgba(255,255,255,.15); flex-shrink:0; }
-.footer { display:none; }
-@media (max-width:1100px) { .kpi-row { grid-template-columns:repeat(2,1fr); } .mid-row,.hist-row,.decline-row { grid-template-columns:1fr; } .whatif-row { grid-template-columns:1fr; } }
-@media (max-width:640px) { .kpi-row { grid-template-columns:1fr 1fr; } .risks-row { grid-template-columns:1fr; } #bottomBar { gap:16px; padding:0 16px; } .org-banner-name { font-size:32px; } }
-@media print { #bottomBar, .header-right { display:none !important; } }
+body {
+  font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  padding-bottom: 120px;
+}
+header {
+  background: var(--white);
+  border-bottom: 1px solid var(--ink-20);
+  padding: 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 60px;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  box-shadow: 0 1px 0 var(--ink-20);
+}
+.logo { display: flex; align-items: center; gap: 12px; }
+.logo-mark {
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.logo-text { font-size: 18px; font-weight: 900; letter-spacing: -.5px; color: var(--coral); }
+.logo-sep  { color: var(--ink-20); font-weight: 300; font-size: 20px; margin: 0 4px; }
+.logo-sub  { font-size: 13px; font-weight: 600; color: var(--ink-60); }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.as-of { font-size: 12px; color: var(--ink-60); }
+.as-of strong { color: var(--ink); }
+.live-badge {
+  background: linear-gradient(135deg, var(--coral) 0%, #F5895A 100%);
+  color: #fff;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .5px;
+}
+.tab-nav {
+  background: var(--white);
+  border-bottom: 1px solid var(--ink-20);
+  padding: 10px 28px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: sticky;
+  top: 60px;
+  z-index: 190;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab-nav::-webkit-scrollbar { display: none; }
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-60);
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  background: transparent;
+  border-radius: 100px;
+  white-space: nowrap;
+  transition: all .15s;
+  flex-shrink: 0;
+  font-family: 'Nunito', sans-serif;
+}
+.tab-btn:hover { color: var(--ink); background: #F0F0F0; }
+.tab-btn.active { color: white; background: var(--org); border-color: var(--org); }
+.tab-sep { width: 1px; height: 18px; background: var(--ink-20); flex-shrink: 0; margin: 0 3px; }
+.loading-overlay {
+  position: fixed; inset: 0;
+  background: rgba(248,245,242,.92);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 500; gap: 16px;
+}
+.spinner {
+  width: 40px; height: 40px;
+  border: 3px solid var(--ink-20);
+  border-top-color: var(--coral);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { color: var(--ink-60); font-size: 13px; font-weight: 600; }
+.container { max-width: 1060px; margin: 0 auto; padding: 0 48px 40px; }
+.org-banner { padding: 28px 0 22px; border-bottom: 2px solid var(--ink-20); margin-bottom: 20px; }
+.org-banner-eyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.8px; color: var(--org); margin-bottom: 10px; }
+.org-banner-name { font-family: 'Song Myung', Georgia, serif; font-size: 46px; font-weight: 400; letter-spacing: -1px; color: var(--ink); line-height: 1.1; margin-bottom: 8px; }
+.org-banner-sub { font-size: 15px; color: var(--ink-60); }
+.insight-strip { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+.insight-chip {
+  flex: 1; min-width: 180px;
+  display: flex; align-items: center; gap: 10px;
+  background: var(--white);
+  border: var(--border);
+  border-radius: 12px;
+  padding: 11px 14px;
+  box-shadow: var(--shadow);
+  transition: box-shadow .15s;
+}
+.insight-chip:hover { box-shadow: 0 4px 16px rgba(17,17,17,.08); }
+.insight-chip.risk  { border-left: 4px solid var(--red); }
+.insight-chip.win   { border-left: 4px solid var(--teal); }
+.insight-chip.watch { border-left: 4px solid var(--amber); }
+.insight-icon  { font-size: 16px; flex-shrink: 0; line-height: 1; }
+.insight-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 2px; }
+.insight-chip.risk  .insight-label { color: var(--red); }
+.insight-chip.win   .insight-label { color: var(--teal); }
+.insight-chip.watch .insight-label { color: var(--amber); }
+.insight-text  { font-size: 12.5px; color: var(--ink); font-weight: 700; line-height: 1.3; margin-bottom: 0; }
+.insight-sub   { display: none; }
+.health-card {
+  background: var(--white); border-radius: var(--radius);
+  padding: 20px 24px; border: var(--border); box-shadow: var(--shadow);
+  display: flex; align-items: center; gap: 20px;
+  margin-bottom: 16px; flex-wrap: wrap;
+}
+.gauge-wrap { position: relative; width: 100px; height: 60px; flex-shrink: 0; }
+.gauge-value { font-size: 30px; font-weight: 900; text-align: center; letter-spacing: -1px; }
+.gauge-desc { font-size: 11px; color: var(--ink-60); }
+.health-divider { width: 1px; background: var(--ink-20); align-self: stretch; flex-shrink: 0; }
+.health-note { font-size: 12px; color: var(--ink-60); line-height: 1.6; }
+.health-proj { font-size: 10px; color: var(--ink-60); text-align: right; margin-left: auto; line-height: 1.6; }
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
+.kpi-card,
+.kpi {
+  background: var(--white); border-radius: var(--radius);
+  padding: 16px 18px; border: var(--border); box-shadow: var(--shadow);
+  display: flex; flex-direction: column;
+  border-top: none;
+  transition: box-shadow .15s;
+}
+.kpi-card:hover, .kpi:hover { box-shadow: 0 4px 16px rgba(17,17,17,.08); }
+.kpi-header-row { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
+.kpi-icon-circle {
+  width: 30px; height: 30px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.kpi-sparkline-svg { width: 64px; height: 26px; flex-shrink: 0; }
+.kpi-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--ink-60); margin-bottom: 2px; }
+.kpi-value { font-size: 36px; font-weight: 900; line-height: 1; color: var(--ink); letter-spacing: -1.5px; margin-bottom: 5px; }
+.kpi-sub   { font-size: 11px; color: var(--ink-60); display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-bottom: 4px; }
+.kpi-note  { font-size: 10px; color: var(--ink-60); opacity: .85; line-height: 1.4; margin-bottom: 2px; }
+.kpi-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; }
+.badge-red    { background: rgba(217,48,37,.10);  color: var(--red); }
+.badge-green  { background: var(--green-lt); color: var(--teal); }
+.badge-yellow { background: var(--amber-lt); color: var(--amber); }
+.badge-blue   { background: var(--purple-lt); color: var(--purple); }
+.goal-bar-wrap { background: var(--ink-20); border-radius: 4px; height: 4px; overflow: hidden; margin-top: 2px; margin-bottom: 4px; }
+.goal-bar { height: 100%; border-radius: 4px; transition: width .5s ease; background: var(--teal); }
+.goal-pct { font-size: 11px; font-weight: 700; }
+.offers-sub { display: flex; gap: 6px; flex-wrap: wrap; }
+.offers-pill { font-size: 10px; padding: 2px 9px; border-radius: 20px; font-weight: 700; }
+.pill-green { background: var(--green-lt); color: var(--teal); }
+.pill-blue  { background: var(--purple-lt); color: var(--purple); }
+.card {
+  background: var(--white); border-radius: var(--radius);
+  padding: 18px 20px; border: var(--border); box-shadow: var(--shadow);
+  transition: box-shadow .15s;
+}
+.card:hover { box-shadow: 0 4px 16px rgba(17,17,17,.08); }
+.card-title {
+  font-family: 'Song Myung', Georgia, serif;
+  font-size: 15px; font-weight: 400; color: var(--ink);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.card-title span { font-size: 11px; color: var(--ink-60); font-weight: 400; font-family: 'Nunito', sans-serif; letter-spacing: 0; text-transform: none; }
+.mid-row    { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; margin-bottom: 16px; }
+.bottom-row { margin-bottom: 16px; }
+.hist-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.decline-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 16px; }
+.whatif-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.chart-container { position: relative; width: 100%; }
+canvas { display: block; }
+#bgCanvas { max-height: none !important; width: 100% !important; height: 100% !important; }
+.chart-container canvas { display: block; width: 100% !important; }
+.scenario-tabs { display: flex; gap: 5px; }
+.scenario-tab {
+  padding: 5px 11px; border-radius: 100px; font-size: 11px; font-weight: 700;
+  cursor: pointer; border: 1.5px solid var(--ink-20); background: transparent;
+  color: var(--ink-60); transition: all .15s; font-family: 'Nunito', sans-serif;
+}
+.scenario-tab.pessimistic:hover, .scenario-tab.pessimistic.active { border-color: var(--red); color: var(--red); background: var(--red-lt); }
+.scenario-tab.base:hover, .scenario-tab.base.active { border-color: var(--coral); color: var(--coral); background: rgba(244,93,72,.06); }
+.scenario-tab.optimistic:hover, .scenario-tab.optimistic.active { border-color: var(--teal); color: var(--teal); background: var(--green-lt); }
+.whatif-card { background: var(--white); border: var(--border); border-radius: var(--radius); padding: 20px 22px; box-shadow: var(--shadow); }
+.slider-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.slider-name { font-size: 12px; font-weight: 700; color: var(--ink); }
+.slider-val  { font-size: 20px; font-weight: 900; color: var(--coral); letter-spacing: -.5px; }
+input[type="range"] {
+  width: 100%; -webkit-appearance: none; appearance: none;
+  height: 6px; border-radius: 3px; background: var(--ink-20); outline: none; margin-bottom: 6px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--coral); cursor: pointer;
+  border: 2px solid var(--white); box-shadow: 0 1px 4px rgba(0,0,0,.2);
+}
+.slider-minmax { display: flex; justify-content: space-between; font-size: 10px; color: var(--ink-60); }
+.slider-impact { font-size: 11px; color: var(--ink-60); margin-top: 6px; }
+.projection-result { background: var(--white); border: var(--border); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 16px; box-shadow: var(--shadow); }
+.proj-title { font-family: 'Song Myung', Georgia, serif; font-size: 15px; color: var(--ink); margin-bottom: 14px; }
+.proj-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--ink-20); border-radius: 12px; overflow: hidden; }
+.proj-item { background: var(--bg); padding: 16px; text-align: center; }
+.proj-item-val { font-size: 24px; font-weight: 900; letter-spacing: -.5px; line-height: 1; }
+.proj-item-label { font-size: 10px; color: var(--ink-60); margin-top: 5px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; }
+.proj-divider { width: 1px; background: var(--ink-20); align-self: stretch; }
+.funnel-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.funnel-label { width: 130px; font-size: 11px; color: var(--ink-60); text-align: right; flex-shrink: 0; }
+.funnel-bar-wrap { flex: 1; background: rgba(0,0,0,.05); border-radius: 4px; height: 22px; overflow: hidden; }
+.funnel-bar { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; font-size: 11px; font-weight: 700; color: #fff; transition: width .4s ease; }
+.funnel-rate { width: 48px; font-size: 11px; color: var(--ink-60); text-align: right; flex-shrink: 0; }
+.funnel-arrow { font-size: 10px; color: var(--ink-60); text-align: center; padding-left: 142px; margin-bottom: 2px; margin-top: -4px; }
+.oar-row { display: flex; flex-direction: column; gap: 8px; }
+.oar-item { display: flex; align-items: center; gap: 10px; }
+.oar-item-label { width: 24px; font-size: 11px; font-weight: 700; color: var(--ink-60); }
+.oar-item-bar-wrap { flex: 1; background: rgba(0,0,0,.05); border-radius: 4px; height: 18px; overflow: hidden; }
+.oar-item-bar { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 6px; font-size: 10px; font-weight: 700; color: #fff; }
+.oar-item-val { width: 38px; font-size: 11px; font-weight: 700; text-align: right; }
+.decline-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.decline-label { width: 160px; font-size: 11px; color: var(--ink-60); text-align: right; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.decline-bar-wrap { flex: 1; background: rgba(0,0,0,.05); border-radius: 4px; height: 20px; overflow: hidden; }
+.decline-bar { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; font-size: 10px; font-weight: 700; color: #fff; transition: width .4s ease; white-space: nowrap; }
+.decline-count { width: 48px; font-size: 11px; font-weight: 700; text-align: right; flex-shrink: 0; }
+.analysis-note { margin-top: 10px; padding: 8px 10px; background: rgba(217,119,6,.07); border-left: 3px solid rgba(217,119,6,.45); border-radius: 0 6px 6px 0; font-size: 10px; line-height: 1.5; color: var(--ink-60); }
+.analysis-note strong { color: #C47A0A; }
+.analysis-note.risk { background: rgba(217,48,37,.07); border-left-color: rgba(217,48,37,.45); }
+.analysis-note.risk strong { color: var(--red); }
+.analysis-note.ok { background: rgba(10,128,128,.07); border-left-color: rgba(10,128,128,.45); }
+.analysis-note.ok strong { color: var(--teal); }
+.insight-callout { background: rgba(244,93,72,.07); border: 1px solid rgba(244,93,72,.25); border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; font-size: 12px; line-height: 1.5; }
+.insight-callout strong { color: var(--coral); }
+.risks-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.risk-card { background: var(--white); border: var(--border); border-radius: var(--radius); padding: 16px; display: flex; gap: 12px; align-items: flex-start; box-shadow: var(--shadow); }
+.risk-icon  { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+.risk-title { font-size: 13px; font-weight: 800; margin-bottom: 4px; }
+.risk-desc  { font-size: 11px; color: var(--ink-60); line-height: 1.5; }
+.risk-high .risk-title { color: var(--red); }
+.risk-mid  .risk-title { color: var(--amber); }
+.risk-low  .risk-title { color: var(--teal); }
+.scroll-table-wrap {
+  position: relative;
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid var(--ink-20);
+}
+.scroll-table-wrap::after {
+  content: '';
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  display: block;
+  background: linear-gradient(transparent, rgba(255,255,255,.92));
+  pointer-events: none;
+  margin-top: -36px;
+}
+.scroll-hint-bar {
+  display: flex; align-items: center; justify-content: center;
+  gap: 4px; padding: 5px 10px;
+  font-size: 10px; font-weight: 700; color: var(--ink-60);
+  border-top: 1px solid var(--ink-20); letter-spacing: .4px;
+  text-transform: uppercase;
+}
+.accepts-table-wrap { overflow-x: auto; }
+.accepts-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.accepts-table th { text-align: left; padding: 5px 10px; color: var(--ink-60); font-weight: 700; font-size: 9.5px; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--ink-20); background: var(--bg); position: sticky; top: 0; z-index: 1; }
+.accepts-table td { padding: 5px 10px; border-bottom: 1px solid rgba(0,0,0,.04); vertical-align: middle; }
+.accepts-table tr:last-child td { border-bottom: none; }
+.accepts-table tr:hover td { background: rgba(0,0,0,.02); }
+.accept-candidate { font-weight: 700; color: var(--ink); font-size: 11.5px; }
+.accept-job  { font-size: 10px; color: var(--ink-60); }
+.accept-date { font-size: 10.5px; color: var(--ink-60); white-space: nowrap; }
+.accept-start { font-size: 10.5px; font-weight: 700; color: var(--teal); white-space: nowrap; }
+.accept-req-link { font-size: 9.5px; font-weight: 700; color: var(--coral); text-decoration: none; padding: 1px 6px; border: 1px solid rgba(244,93,72,.25); border-radius: 5px; white-space: nowrap; }
+.accept-req-link:hover { background: rgba(244,93,72,.06); }
+.accept-req-id { font-size: 10.5px; color: var(--ink-60); font-family: monospace; }
+.req-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.req-table th { text-align: left; padding: 5px 10px; color: var(--ink-60); font-weight: 700; font-size: 9.5px; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--ink-20); background: var(--bg); position: sticky; top: 0; z-index: 1; }
+.req-table td { padding: 5px 10px; border-bottom: 1px solid rgba(0,0,0,.04); vertical-align: middle; }
+.req-table tr:last-child td { border-bottom: none; }
+.req-table tr:hover td { background: rgba(0,0,0,.02); }
+.rec-header { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 2px solid var(--ink-20); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.rec-name { font-family: 'Song Myung', Georgia, serif; font-size: 26px; font-weight: 400; color: var(--ink); }
+.rec-badge { padding: 4px 12px; border-radius: 100px; font-size: 11px; font-weight: 700; }
+.rec-status-card { background: var(--white); border: var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 14px; overflow: hidden; }
+.rec-status-header { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-bottom: var(--border); background: var(--bg); flex-wrap: wrap; }
+.rec-health-block { display: flex; align-items: center; gap: 10px; }
+.rec-health-score-big { font-size: 30px; font-weight: 900; line-height: 1; letter-spacing: -1px; }
+.rec-health-info { display: flex; flex-direction: column; gap: 1px; }
+.rec-health-tag { font-size: 10px; color: var(--ink-60); text-transform: uppercase; letter-spacing: .7px; font-weight: 700; display: flex; align-items: center; gap: 5px; }
+.health-info-btn { width: 14px; height: 14px; border-radius: 50%; background: var(--ink-20); border: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 900; color: var(--ink-60); flex-shrink: 0; position: relative; font-style: normal; font-family: 'Nunito', sans-serif; text-transform: none; letter-spacing: 0; }
+.health-info-btn:hover { background: var(--ink); color: var(--white); }
+.health-tooltip { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: 240px; background: var(--ink); color: var(--white); border-radius: 10px; padding: 10px 12px; font-size: 11px; line-height: 1.6; font-weight: 500; text-transform: none; letter-spacing: 0; z-index: 9999; pointer-events: none; opacity: 0; transition: opacity .15s; white-space: normal; box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+.health-tooltip::after { content:''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: var(--ink); }
+.health-info-btn:hover .health-tooltip,
+.health-info-btn:focus .health-tooltip { opacity: 1; }
+.rec-health-desc-text { font-size: 12px; font-weight: 800; }
+.rec-health-divider { width: 1px; height: 36px; background: var(--ink-20); flex-shrink: 0; }
+.rec-health-note { font-size: 11px; color: var(--ink-60); line-height: 1.5; }
+.rec-status-metrics { display: grid; grid-template-columns: repeat(4, 1fr); }
+.rec-status-metrics-5 { display: grid; grid-template-columns: repeat(5, 1fr); }
+.rec-metric-block { padding: 12px 16px; border-right: var(--border); }
+.rec-metric-block:last-child { border-right: none; }
+.rec-metric-label { font-size: 10px; color: var(--ink-60); text-transform: uppercase; letter-spacing: .7px; font-weight: 700; margin-bottom: 4px; }
+.rec-metric-value { font-size: 28px; font-weight: 900; letter-spacing: -1px; line-height: 1; margin-bottom: 3px; }
+.rec-metric-sub  { font-size: 11px; color: var(--ink-60); margin-bottom: 3px; }
+.rec-metric-note { font-size: 10px; color: var(--ink-60); font-style: italic; line-height: 1.3; }
+.rec-mid  { margin-bottom: 14px; }
+.rec-bottom { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 14px; align-items: start; }
+.rec-section { background: var(--white); border: var(--border); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
+.rec-section-title { font-size: 10.5px; font-weight: 700; color: var(--ink-60); text-transform: uppercase; letter-spacing: .7px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.req-pills { display: flex; flex-direction: column; gap: 5px; }
+.req-pill { border: var(--border); border-radius: 12px; padding: 8px 12px; background: var(--white); cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.req-pill:hover { border-color: rgba(107,85,214,.35); box-shadow: 0 2px 8px rgba(107,85,214,.08); }
+.req-pill-row { display: flex; align-items: center; gap: 8px; }
+.req-pill-name { font-size: 12px; font-weight: 700; color: var(--ink); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.req-pill-id { font-size: 10px; color: var(--ink-60); font-family: monospace; flex-shrink: 0; }
+.req-pill-stages { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+.req-stage-badge { display: flex; flex-direction: column; align-items: center; min-width: 32px; }
+.req-stage-label { font-size: 9px; font-weight: 700; color: var(--ink-60); text-transform: uppercase; letter-spacing: .3px; margin-bottom: 1px; }
+.req-stage-val { font-size: 11px; font-weight: 700; padding: 1px 5px; border-radius: 5px; min-width: 24px; text-align: center; }
+.req-stage-arrow { font-size: 9px; color: var(--ink-20); margin-top: 8px; }
+.req-proj-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
+.req-gh-link { font-size: 10px; font-weight: 700; color: var(--coral); text-decoration: none; flex-shrink: 0; padding: 2px 6px; border: 1px solid rgba(244,93,72,.25); border-radius: 5px; }
+.req-gh-link:hover { background: rgba(244,93,72,.06); }
+.req-insight-btn { font-size: 10px; font-weight: 700; color: var(--purple); background: var(--purple-lt); border: none; border-radius: 5px; padding: 2px 8px; cursor: pointer; white-space: nowrap; flex-shrink: 0; font-family: 'Nunito', sans-serif; }
+.req-insight-btn:hover { background: rgba(107,85,214,.2); }
+.req-pill-insight { margin-top: 7px; padding-top: 7px; border-top: var(--border); display: none; }
+.add-req-btn { margin-top: 10px; padding: 6px 14px; border: 1px dashed var(--ink-20); border-radius: 8px; background: none; color: var(--ink-60); font-size: 11px; cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 600; transition: all .15s; }
+.add-req-btn:hover { border-color: var(--coral); color: var(--coral); }
+.req-input { width: 42px; text-align: center; border: var(--border); border-radius: 5px; padding: 3px 4px; font-size: 12px; font-family: 'Nunito', sans-serif; color: var(--ink); background: var(--bg); outline: none; }
+.req-input:focus { border-color: var(--coral); background: var(--white); }
+.req-name-input { width: 100%; min-width: 160px; border: var(--border); border-radius: 5px; padding: 3px 6px; font-size: 12px; font-family: 'Nunito', sans-serif; color: var(--ink); background: var(--bg); outline: none; }
+.req-name-input:focus { border-color: var(--coral); background: var(--white); }
+.pred-wrap { margin-bottom: 14px; padding: 6px 4px 2px; }
+.pred-note {
+  background: linear-gradient(160deg, #FFFDE7 0%, #FFF8C5 100%);
+  border-radius: 4px 4px 8px 8px;
+  padding: 18px 20px 16px;
+  box-shadow: 3px 5px 16px rgba(0,0,0,.14), 0 1px 4px rgba(0,0,0,.07), inset 0 -2px 0 rgba(0,0,0,.04);
+  transform: rotate(-.5deg);
+  position: relative;
+}
+.pred-note::before { content:''; position:absolute; top:-9px; left:50%; transform:translateX(-50%); width:54px; height:18px; background:rgba(244,93,72,.28); border-radius:2px; box-shadow:0 1px 3px rgba(0,0,0,.1); }
+.pred-title { font-size:11px; font-weight:800; letter-spacing:.9px; text-transform:uppercase; color:#8B6408; margin-bottom:12px; display:flex; align-items:center; gap:6px; }
+.pred-divider { flex:1; height:1px; background:rgba(139,100,8,.15); }
+.pred-items { display:flex; flex-direction:column; }
+.pred-item { display:flex; align-items:flex-start; gap:9px; padding:7px 0; border-bottom:1px solid rgba(139,100,8,.1); font-size:12px; color:#3D2C04; line-height:1.5; }
+.pred-item:last-child { border-bottom:none; padding-bottom:0; }
+.pred-icon { flex-shrink:0; font-size:13px; margin-top:1px; width:18px; text-align:center; }
+.pred-text { flex:1; }
+.pred-text strong { color:#5C3D02; }
+.pred-badge { flex-shrink:0; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; padding:2px 6px; border-radius:10px; margin-top:2px; }
+.pred-badge-high   { background:rgba(208,58,40,.15);  color:#D03A28; }
+.pred-badge-warn   { background:rgba(196,122,10,.15); color:#C47A0A; }
+.pred-badge-action { background:rgba(107,85,214,.12); color:#5548D9; }
+.pred-badge-ok     { background:rgba(0,135,110,.12);  color:#00876E; }
+@keyframes __pulseAmber {
+  0%,100% { opacity:.45; box-shadow:inset 0 0 50px rgba(217,119,6,.18),0 0 0 3px #D97706; }
+  50%     { opacity:1;   box-shadow:inset 0 0 100px rgba(217,119,6,.35),0 0 0 3px #D97706; }
+}
+@keyframes __policeFlash {
+  0%,45%,55%,100% { background:rgba(217,48,37,.04); border-color:#D93025; box-shadow:inset 0 0 60px rgba(217,48,37,.25),0 0 0 3px #D93025; }
+  50%             { background:rgba(217,48,37,.14); border-color:#fff3;   box-shadow:inset 0 0 120px rgba(217,48,37,.55),0 0 0 3px #D93025; }
+}
+@keyframes __healthSlideIn { from { transform:translateX(70px);opacity:0; } to { transform:translateX(0);opacity:1; } }
+@keyframes __healthFadeOut { to { opacity:0; transform:translateX(40px); } }
+#bottomBar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--ink);
+  color: white;
+  height: 54px;
+  display: flex; align-items: center; justify-content: center; gap: 44px;
+  z-index: 300;
+  box-shadow: 0 -1px 0 rgba(255,255,255,.1);
+  overflow-x: auto;
+}
+.bb-stat { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.bb-val  { font-size: 18px; font-weight: 900; letter-spacing: -.5px; }
+.bb-lbl  { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .9px; opacity: .5; }
+.bb-sep  { width: 1px; height: 24px; background: rgba(255,255,255,.15); flex-shrink: 0; }
+#toast {
+  position: fixed; bottom: 72px; left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--dark-teal); color: white;
+  padding: 10px 20px; border-radius: 12px;
+  font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; gap: 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.25);
+  transition: transform .3s ease, opacity .3s ease;
+  opacity: 0; z-index: 999; white-space: nowrap;
+}
+#toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+.footer { display: none; }
+@media (max-width: 1100px) {
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .mid-row, .hist-row, .decline-row { grid-template-columns: 1fr; }
+  .whatif-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .kpi-row { grid-template-columns: 1fr 1fr; }
+  .risks-row { grid-template-columns: 1fr; }
+  #bottomBar { gap: 16px; padding: 0 16px; }
+  .org-banner-name { font-size: 32px; }
+}
+@media print { #bottomBar, .header-right, #toast { display: none !important; } }
 </style>
 </head>
 <body>
+
+<!-- Team Config -->
 <script>
 window.TEAM_CONFIG = { key: 'GTM', name: 'GTM', color: '#0A8080', lead: 'Lisa Pham', goal: 16 };
 window.TEAM_RECRUITERS = [
@@ -134,30 +473,90 @@ window.TEAM_RECRUITERS = [
   { name:"William Brown", goal:4, accepted:0, extended:0, oar:0, oarByLevel:{}, declines:[], reqs:[] }
 ];
 </script>
+
+<!-- Animated Background -->
 <div aria-hidden="true" style="position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden">
-  <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="bdots" x="0" y="0" width="36" height="36" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.6" fill="#0A8080"/></pattern></defs><rect width="100%" height="100%" fill="url(#bdots)" opacity="0.07"/></svg>
+  <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <pattern id="bdots" x="0" y="0" width="36" height="36" patternUnits="userSpaceOnUse">
+        <circle cx="2" cy="2" r="1.6" fill="#0A8080"/>
+      </pattern>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#bdots)" opacity="0.07"/>
+  </svg>
 </div>
 <canvas id="bgCanvas" aria-hidden="true" style="position:fixed;inset:0;z-index:-1;pointer-events:none;width:100%;height:100%"></canvas>
 <script>
 (function(){
-  const canvas = document.getElementById('bgCanvas'); const ctx = canvas.getContext('2d');
+  const canvas = document.getElementById('bgCanvas');
+  const ctx = canvas.getContext('2d');
   function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-  resize(); window.addEventListener('resize', resize);
-  const spheres = [ { color:'#F45D48', r:420, x:0, y:0, vx:0.25, vy:0.20, rings:[310,200], alpha:0.07 }, { color:'#0A8080', r:460, x:0, y:0, vx:-0.20,vy:-0.22, rings:[340,220], alpha:0.065 }, { color:'#0A8080', r:140, x:0, y:0, vx:0.30, vy:-0.16, rings:[90], alpha:0.045 } ];
-  function setPos() { spheres[0].x=canvas.width*0.92; spheres[0].y=canvas.height*0.05; spheres[1].x=canvas.width*0.04; spheres[1].y=canvas.height*0.90; spheres[2].x=canvas.width*0.95; spheres[2].y=canvas.height*0.55; }
-  setPos(); window.addEventListener('resize', setPos);
-  function draw() { ctx.clearRect(0,0,canvas.width,canvas.height); spheres.forEach(s => { s.x+=s.vx; s.y+=s.vy; const pad=s.r*0.5; if(s.x<-pad){s.x=-pad;s.vx=Math.abs(s.vx);} if(s.x>canvas.width+pad){s.x=canvas.width+pad;s.vx=-Math.abs(s.vx);} if(s.y<-pad){s.y=-pad;s.vy=Math.abs(s.vy);} if(s.y>canvas.height+pad){s.y=canvas.height+pad;s.vy=-Math.abs(s.vy);} ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fillStyle=s.color; ctx.globalAlpha=s.alpha; ctx.fill(); s.rings.forEach((rr,i)=>{ctx.beginPath();ctx.arc(s.x,s.y,rr,0,Math.PI*2);ctx.strokeStyle=s.color;ctx.lineWidth=i===0?2.5:1.5;ctx.globalAlpha=s.alpha*1.4;ctx.stroke();}); }); ctx.globalAlpha=1; requestAnimationFrame(draw); }
+  resize();
+  window.addEventListener('resize', resize);
+  const spheres = [
+    { color:'#F45D48', r:420, x:0, y:0, vx:0.25, vy:0.20, rings:[310,200], alpha:0.07 },
+    { color:'#0A8080', r:460, x:0, y:0, vx:-0.20,vy:-0.22, rings:[340,220], alpha:0.065 },
+    { color:'#0A8080', r:140, x:0, y:0, vx:0.30, vy:-0.16, rings:[90],      alpha:0.045 },
+  ];
+  function setPos() {
+    spheres[0].x = canvas.width  * 0.92; spheres[0].y = canvas.height * 0.05;
+    spheres[1].x = canvas.width  * 0.04; spheres[1].y = canvas.height * 0.90;
+    spheres[2].x = canvas.width  * 0.95; spheres[2].y = canvas.height * 0.55;
+  }
+  setPos();
+  window.addEventListener('resize', setPos);
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    spheres.forEach(s => {
+      s.x += s.vx; s.y += s.vy;
+      const pad = s.r * 0.5;
+      if (s.x < -pad)                { s.x = -pad;                s.vx =  Math.abs(s.vx); }
+      if (s.x > canvas.width  + pad) { s.x = canvas.width  + pad; s.vx = -Math.abs(s.vx); }
+      if (s.y < -pad)                { s.y = -pad;                s.vy =  Math.abs(s.vy); }
+      if (s.y > canvas.height + pad) { s.y = canvas.height + pad; s.vy = -Math.abs(s.vy); }
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+      ctx.fillStyle = s.color; ctx.globalAlpha = s.alpha; ctx.fill();
+      s.rings.forEach((rr, i) => {
+        ctx.beginPath(); ctx.arc(s.x, s.y, rr, 0, Math.PI*2);
+        ctx.strokeStyle = s.color; ctx.lineWidth = i === 0 ? 2.5 : 1.5;
+        ctx.globalAlpha = s.alpha * 1.4; ctx.stroke();
+      });
+    });
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(draw);
+  }
   draw();
 })();
 </script>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay" style="display:none">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">Fetching live pipeline data…</div>
+</div>
+
+<!-- Header -->
 <header>
   <div class="logo">
-    <div class="logo-mark"><svg width="28" height="28" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M11 2C6.03 2 2 6.03 2 11s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 4a5 5 0 0 1 4.9 4H11V6zm-1 0v4H6.1A5 5 0 0 1 10 6zm-4 5h4v4a5 5 0 0 1-4-4zm5 4V11h4a5 5 0 0 1-4 4z" fill="#F45D48"/></svg></div>
-    <span class="logo-text">gusto</span><span class="logo-sep">|</span><span class="logo-sub">GTM Recruiting</span>
+    <div class="logo-mark">
+      <svg width="28" height="28" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M11 2C6.03 2 2 6.03 2 11s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 4a5 5 0 0 1 4.9 4H11V6zm-1 0v4H6.1A5 5 0 0 1 10 6zm-4 5h4v4a5 5 0 0 1-4-4zm5 4V11h4a5 5 0 0 1-4 4z" fill="#F45D48"/>
+      </svg>
+    </div>
+    <span class="logo-text">gusto</span>
+    <span class="logo-sep">|</span>
+    <span class="logo-sub">GTM Recruiting</span>
   </div>
-  <div class="header-right"><span class="as-of" id="updatedTime">Loading…</span><span class="live-badge">LIVE</span></div>
+  <div class="header-right">
+    <span class="as-of" id="updatedTime">Loading…</span>
+    <span class="live-badge">LIVE</span>
+  </div>
 </header>
+
+<!-- Tab nav (populated by JS) -->
 <div class="tab-nav" id="tabNav"></div>
+
+<!-- Team Overview -->
 <div id="teamView">
 <div class="container">
   <div class="org-banner">
@@ -166,9 +565,30 @@ window.TEAM_RECRUITERS = [
     <div class="org-banner-sub">Live metrics across the GTM org · May – July 2026</div>
   </div>
   <div class="insight-strip">
-    <div class="insight-chip watch"><span class="insight-icon">&#9203;</span><div><div class="insight-label">Deadline</div><div class="insight-text" id="insightDeadlineText">10 days left in Q1</div><div class="insight-sub">Jul 31 close—pipeline must convert now.</div></div></div>
-    <div class="insight-chip risk"><span class="insight-icon">&#128683;</span><div><div class="insight-label">Critical Risk</div><div class="insight-text">L4 OAR at 56%</div><div class="insight-sub">100% of declines are comp—escalate band review immediately.</div></div></div>
-    <div class="insight-chip win"><span class="insight-icon">&#9989;</span><div><div class="insight-label">Win</div><div class="insight-text">L1 &amp; L3 at 100% OAR</div><div class="insight-sub">No declines at those levels in Q1—strong close rate.</div></div></div>
+    <div class="insight-chip watch">
+      <span class="insight-icon">&#9203;</span>
+      <div>
+        <div class="insight-label">Deadline</div>
+        <div class="insight-text" id="insightDeadlineText">10 days left in Q1</div>
+        <div class="insight-sub">Jul 31 close—pipeline must convert now.</div>
+      </div>
+    </div>
+    <div class="insight-chip risk">
+      <span class="insight-icon">&#128683;</span>
+      <div>
+        <div class="insight-label">Critical Risk</div>
+        <div class="insight-text">L4 OAR at 56%</div>
+        <div class="insight-sub">100% of declines are comp—escalate band review immediately.</div>
+      </div>
+    </div>
+    <div class="insight-chip win">
+      <span class="insight-icon">&#9989;</span>
+      <div>
+        <div class="insight-label">Win</div>
+        <div class="insight-text">L1 &amp; L3 at 100% OAR</div>
+        <div class="insight-sub">No declines at those levels in Q1—strong close rate.</div>
+      </div>
+    </div>
   </div>
   <div class="health-card">
     <div class="gauge-wrap" style="width:100px;height:60px;margin-top:-4px"><canvas id="gaugeChart"></canvas></div>
@@ -178,55 +598,248 @@ window.TEAM_RECRUITERS = [
       <div class="gauge-desc" id="healthLabel">Calculating…</div>
     </div>
     <div class="health-divider"></div>
-    <div class="health-note">Q1 FY27 · May–Jul 2026 &nbsp;·&nbsp; <strong id="teamDaysHeader">–</strong> days remaining &nbsp;·&nbsp; <span id="teamPctHeader">–</span>% elapsed<br><span id="teamGoalSummary">–</span></div>
-    <div class="health-proj">FTE Projected = <strong id="teamProjBreakdown">–</strong><br><span style="font-style:italic;font-size:10px">accepted + pace‐based remaining</span></div>
+    <div class="health-note">
+      Q1 FY27 · May–Jul 2026 &nbsp;·&nbsp; <strong id="teamDaysHeader">–</strong> days remaining &nbsp;·&nbsp; <span id="teamPctHeader">–</span>% elapsed<br>
+      <span id="teamGoalSummary">–</span>
+    </div>
+    <div class="health-proj">
+      FTE Projected = <strong id="teamProjBreakdown">–</strong><br>
+      <span style="font-style:italic;font-size:10px">accepted + pace‐based remaining</span>
+    </div>
   </div>
   <div class="kpi-row">
-    <div class="kpi"><div class="kpi-header-row"><div class="kpi-icon-circle" style="background:rgba(244,93,72,.10)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="#F45D48" stroke-width="1.5"/><circle cx="8" cy="8" r="3.5" stroke="#F45D48" stroke-width="1.5"/><circle cx="8" cy="8" r="1.5" fill="#F45D48"/></svg></div><svg class="kpi-sparkline-svg" viewBox="0 0 64 26" fill="none"><path d="M2 20 C14 17,26 13,38 10 C48 8,55 7,62 5" stroke="#F45D48" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="62" cy="5" r="2.5" fill="#F45D48"/></svg></div><div class="kpi-label">Q1 Goal</div><div class="kpi-value" id="teamGoalValue">16</div><div class="kpi-sub">FTE hires by Jul 31</div><div class="goal-bar-wrap"><div class="goal-bar" id="goalBar" style="width:0%"></div></div><div class="goal-pct" id="goalPct" style="color:var(--teal)">–% confirmed</div><div class="kpi-note" id="goalNote">– accepted · – more needed</div></div>
-    <div class="kpi"><div class="kpi-header-row"><div class="kpi-icon-circle" style="background:rgba(10,128,128,.10)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2.5 8.5 L6 12 L13.5 4.5" stroke="#0A8080" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><svg class="kpi-sparkline-svg" viewBox="0 0 64 26" fill="none"><path d="M2 6 C14 6,26 8,38 9 C48 10,55 11,62 14" stroke="#0A8080" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="62" cy="14" r="2.5" fill="#0A8080"/></svg></div><div class="kpi-label">Accepted Offers</div><div class="kpi-value" id="kpiAccepted" style="color:var(--teal)">–</div><div class="kpi-sub" id="kpiAcceptedSub"><div class="offers-sub"><span class="offers-pill pill-green" id="pillStarted">–</span><span class="offers-pill pill-blue" id="pillPending">–</span></div></div><div class="kpi-note">Q1 · excl. interns &amp; apprentices</div></div>
-    <div class="kpi" id="teamOARBlock"><div class="kpi-header-row"><div class="kpi-icon-circle" style="background:rgba(10,128,128,.10)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="5.5" r="2.5" stroke="#0A8080" stroke-width="1.5"/><circle cx="10.5" cy="10.5" r="2.5" stroke="#0A8080" stroke-width="1.5"/><path d="M3 13 L13 3" stroke="#0A8080" stroke-width="1.3" stroke-linecap="round"/></svg></div><svg class="kpi-sparkline-svg" viewBox="0 0 64 26" fill="none"><path d="M2 5 C12 7,22 10,32 13 C42 16,52 19,62 21" stroke="#D97706" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="62" cy="21" r="2.5" fill="#D97706"/></svg></div><div class="kpi-label">OAR</div><div class="kpi-value" id="teamOARVal" style="color:var(--teal)">–</div><div class="kpi-sub">Offer Acceptance Rate</div><div class="kpi-note" id="teamOARNote">– accepted / – extended</div></div>
-    <div class="kpi"><div class="kpi-header-row"><div class="kpi-icon-circle" style="background:rgba(217,119,6,.10)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="10" rx="2" stroke="#D97706" stroke-width="1.5"/><path d="M5 4 L5 2 M11 4 L11 2" stroke="#D97706" stroke-width="1.5" stroke-linecap="round"/><path d="M5 9 L7.5 7 L10 9 L13 7" stroke="#D97706" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></div><svg class="kpi-sparkline-svg" viewBox="0 0 64 26" fill="none"><path d="M2 22 C12 18,22 13,32 10 C42 8,52 8,62 8" stroke="#D97706" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="62" cy="8" r="2.5" fill="#D97706"/></svg></div><div class="kpi-label">FTE Projected</div><div class="kpi-value" id="kpiProjected" style="color:var(--amber)">–</div><div class="kpi-sub" id="kpiGapLabel">–</div><div class="kpi-note" id="kpiProjectedNote">–</div></div>
+    <div class="kpi">
+      <div class="kpi-header-row">
+        <div class="kpi-icon-circle" style="background:rgba(244,93,72,.10)">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="#F45D48" stroke-width="1.5"/><circle cx="8" cy="8" r="3.5" stroke="#F45D48" stroke-width="1.5"/><circle cx="8" cy="8" r="1.5" fill="#F45D48"/></svg>
+        </div>
+        <svg class="kpi-sparkline-svg" viewBox="0 0 64 26" fill="none"><path d="M2 20 C14 17,26 13,38 10 C48 8,55 7,62 5" stroke="#F45D48" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="62" cy="5" r="2.5" fill="#F45D48"/></svg>
+      </div>
+      <div class="kpi-label">Q1 Goal</div>
+      <div class="kpi-value" id="teamGoalValue">46</div>
+      <div class="kpi-sub">FTE hires by Jul 31</div>
+      <div class="goal-bar-wrap"><div class="goal-bar" id="goalBar" style="width:0%"></div></div>
+      <div class="goal-pct" id="goalPct" style="color:var(--teal)">–% confirmed</div>
+      <div class="kpi-note" id="goalNote">– accepted · – more needed</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-header-row">
+        <div class="kpi-icon-circle" style="background:rgba(10,128,128,.10)">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2.5 8.5 L6 12 L13.5 4.5" stroke="#0A8080" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <svg class="kpi-sparkline-svg" viewBox="0 0 64 26" fill="none"><path d="M2 6 C14 6,26 8,38 9 C48 10,55 11,62 14" stroke="#0A8080" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="62" cy="14" r="2.5" fill="#0A8080"/></svg>
+      </div>
+      <div class="kpi-label">Accepted Offers</div>
+      <div class="kpi-value" id="kpiAccepted" style="color:var(--teal)">–</div>
+      <div class="kpi-sub" id="kpiAcceptedSub">
+        <div class="offers-sub">
+          <span class="offers-pill pill-green" id="pillStarted">–</span>
+          <span class="offers-pill pill-blue"  id="pillPending">–</span>
+        </div>
+      </div>
+      <div class="kpi-note">Q1 · excl. interns &amp; apprentices</div>
+    </div>
+    <div class="kpi" id="teamOARBlock">
+      <div class="kpi-header-row">
+        <div class="kpi-icon-circle" style="background:rgba(10,128,128,.10)">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="5.5" r="2.5" stroke="#0A8080" stroke-width="1.5"/><circle cx="10.5" cy="10.5" r="2.5" stroke="#0A8080" stroke-width="1.5"/><path d="M3 13 L13 3" stroke="#0A8080" stroke-width="1.3" stroke-linecap="round"/></svg>
+        </div>
+        <svg class="kpi-sparkline-svg" viewBox="0 0 64 26" fill="none"><path d="M2 5 C12 7,22 10,32 13 C42 16,52 19,62 21" stroke="#D97706" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="62" cy="21" r="2.5" fill="#D97706"/></svg>
+      </div>
+      <div class="kpi-label">OAR</div>
+      <div class="kpi-value" id="teamOARVal" style="color:var(--teal)">–</div>
+      <div class="kpi-sub">Offer Acceptance Rate</div>
+      <div class="kpi-note" id="teamOARNote">– accepted / – extended</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-header-row">
+        <div class="kpi-icon-circle" style="background:rgba(217,119,6,.10)">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="10" rx="2" stroke="#D97706" stroke-width="1.5"/><path d="M5 4 L5 2 M11 4 L11 2" stroke="#D97706" stroke-width="1.5" stroke-linecap="round"/><path d="M5 9 L7.5 7 L10 9 L13 7" stroke="#D97706" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <svg class="kpi-sparkline-svg" viewBox="0 0 64 26" fill="none"><path d="M2 22 C12 18,22 13,32 10 C42 8,52 8,62 8" stroke="#D97706" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="62" cy="8" r="2.5" fill="#D97706"/></svg>
+      </div>
+      <div class="kpi-label">FTE Projected</div>
+      <div class="kpi-value" id="kpiProjected" style="color:var(--amber)">–</div>
+      <div class="kpi-sub" id="kpiGapLabel">–</div>
+      <div class="kpi-note" id="kpiProjectedNote">–</div>
+    </div>
   </div>
   <div class="mid-row">
-    <div class="card"><div class="card-title">Monthly FTE Hire Projection<div class="scenario-tabs"><div class="scenario-tab pessimistic" onclick="setScenario('pessimistic',this)">Pessimistic</div><div class="scenario-tab base active" onclick="setScenario('base',this)">Base</div><div class="scenario-tab optimistic" onclick="setScenario('optimistic',this)">Optimistic</div></div></div><div class="chart-container" style="height:220px"><canvas id="projectionChart"></canvas></div><div class="analysis-note risk"><strong>⚠ Risk:</strong> Base scenario projects short of goal — review pipeline conversion.</div></div>
-    <div class="card"><div class="card-title">Current Pipeline Funnel <span id="funnelDate"></span></div><div id="funnelContainer"></div><div class="analysis-note risk"><strong>⚠ Bottleneck:</strong> Offer volume trailing goal pace.</div></div>
+    <div class="card">
+      <div class="card-title">
+        Monthly FTE Hire Projection
+        <div class="scenario-tabs">
+          <div class="scenario-tab pessimistic" onclick="setScenario('pessimistic',this)">Pessimistic</div>
+          <div class="scenario-tab base active"  onclick="setScenario('base',this)">Base</div>
+          <div class="scenario-tab optimistic"   onclick="setScenario('optimistic',this)">Optimistic</div>
+        </div>
+      </div>
+      <div class="chart-container" style="height:220px"><canvas id="projectionChart"></canvas></div>
+      <div class="analysis-note risk"><strong>⚠ Risk:</strong> Base scenario projects ~43 FTE — an 11-hire gap to goal. Closing the gap requires accelerating July offer volume significantly.</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Current Pipeline Funnel <span id="funnelDate"></span></div>
+      <div id="funnelContainer"></div>
+      <div class="analysis-note risk"><strong>⚠ Bottleneck:</strong> Only 7 active offers against a goal requiring ~18 closes/month. IR pool is at a multi-week low.</div>
+    </div>
   </div>
-  <div class="bottom-row"><div class="card"><div class="card-title">Pipeline Stage Trends (Weekly) <span>Apr 13 – Jun 8, 2026</span></div><div class="chart-container" style="height:220px"><canvas id="trendChart"></canvas></div></div></div>
+  <div class="bottom-row">
+    <div class="card">
+      <div class="card-title">Pipeline Stage Trends (Weekly) <span>Apr 13 – Jun 8, 2026</span></div>
+      <div class="chart-container" style="height:220px"><canvas id="trendChart"></canvas></div>
+      <div class="analysis-note risk"><strong>⚠ Watch:</strong> Interview Round dropped 67% over 8 weeks (69 → 23), directly compressing the offer stage. Both trends need to reverse in June to generate sufficient July offer volume.</div>
+    </div>
+  </div>
   <div class="whatif-row">
-    <div class="whatif-card"><div class="card-title" style="font-size:13px;margin-bottom:8px">Offer Acceptance Rate (OAR)</div><div class="slider-label"><div class="slider-name">Current: <span style="color:var(--ink-60)">85%</span></div><div class="slider-val" id="oarSliderVal">85%</div></div><input type="range" id="oarSlider" min="55" max="100" value="85" step="1" oninput="onSliderChange()"><div class="slider-minmax"><span>55%</span><span>100%</span></div><div class="slider-impact" id="oarImpact">Baseline OAR</div></div>
-    <div class="whatif-card"><div class="card-title" style="font-size:13px;margin-bottom:8px">Active Recruiters</div><div class="slider-label"><div class="slider-name">Current: <span style="color:var(--ink-60)">4</span></div><div class="slider-val" id="recSliderVal">4</div></div><input type="range" id="recSlider" min="2" max="8" value="4" step="1" oninput="onSliderChange()"><div class="slider-minmax"><span>2</span><span>8</span></div><div class="slider-impact" id="recImpact">Per-recruiter productivity</div></div>
-    <div class="whatif-card"><div class="card-title" style="font-size:13px;margin-bottom:8px">PPR (Hires per Recruiter/Mo)</div><div class="slider-label"><div class="slider-name">Baseline: <span style="color:var(--ink-60)">1.44</span></div><div class="slider-val" id="pprSliderVal">1.44</div></div><input type="range" id="pprSlider" min="0.8" max="2.5" value="1.44" step="0.05" oninput="onSliderChange()"><div class="slider-minmax"><span>0.8</span><span>2.5</span></div><div class="slider-impact" id="pprImpact">Productivity ratio</div></div>
+    <div class="whatif-card">
+      <div class="card-title" style="font-size:13px;margin-bottom:8px">Offer Acceptance Rate (OAR)</div>
+      <div class="slider-label">
+        <div class="slider-name">Current: <span style="color:var(--ink-60)">85%</span></div>
+        <div class="slider-val" id="oarSliderVal">85%</div>
+      </div>
+      <input type="range" id="oarSlider" min="55" max="100" value="85" step="1" oninput="onSliderChange()">
+      <div class="slider-minmax"><span>55%</span><span>100%</span></div>
+      <div class="slider-impact" id="oarImpact">Baseline OAR · L4 currently at 66%</div>
+    </div>
+    <div class="whatif-card">
+      <div class="card-title" style="font-size:13px;margin-bottom:8px">Active Recruiters</div>
+      <div class="slider-label">
+        <div class="slider-name">Current: <span style="color:var(--ink-60)">9</span></div>
+        <div class="slider-val" id="recSliderVal">9</div>
+      </div>
+      <input type="range" id="recSlider" min="6" max="14" value="9" step="1" oninput="onSliderChange()">
+      <div class="slider-minmax"><span>6</span><span>14</span></div>
+      <div class="slider-impact" id="recImpact">Each recruiter adds ~1.44 FTE hires/month</div>
+    </div>
+    <div class="whatif-card">
+      <div class="card-title" style="font-size:13px;margin-bottom:8px">PPR (Hires per Recruiter/Mo)</div>
+      <div class="slider-label">
+        <div class="slider-name">Baseline: <span style="color:var(--ink-60)">1.44</span></div>
+        <div class="slider-val" id="pprSliderVal">1.44</div>
+      </div>
+      <input type="range" id="pprSlider" min="0.8" max="2.5" value="1.44" step="0.05" oninput="onSliderChange()">
+      <div class="slider-minmax"><span>0.8</span><span>2.5</span></div>
+      <div class="slider-impact" id="pprImpact">Productivity ratio from capacity planning</div>
+    </div>
   </div>
-  <div class="projection-result"><div class="proj-title">What-If Projection (FTE)</div><div class="proj-grid"><div class="proj-item"><div class="proj-item-val" id="wiMonthlyPace" style="color:var(--coral)">–</div><div class="proj-item-label">Monthly Pace</div></div><div class="proj-item"><div class="proj-item-val" id="wiHiresRemaining" style="color:var(--coral)">–</div><div class="proj-item-label">Est. FTE Remaining</div></div><div class="proj-item"><div class="proj-item-val" id="wiTotal" style="color:var(--amber)">–</div><div class="proj-item-label">Projected Q1 Total</div></div><div class="proj-item"><div class="proj-item-val" id="wiGap" style="color:var(--red)">–</div><div class="proj-item-label">Gap to Goal</div></div></div></div>
-  <div class="hist-row"><div class="card"><div class="card-title">Quarterly Hiring History (FTE)</div><div class="chart-container" style="height:200px"><canvas id="histChart"></canvas></div></div><div class="card"><div class="card-title">OAR by Level (Q1 Actuals)</div><div class="oar-row" id="oarByLevel"></div></div></div>
-  <div class="decline-row"><div class="card"><div class="card-title">L4 Offer Decline Reasons <span>Q1</span></div><div id="l4DeclineContainer"></div></div><div class="card"><div class="card-title">Decline Reasons by Level <span>Q1</span></div><div class="chart-container" style="height:220px"><canvas id="declineCompChart"></canvas></div></div></div>
+  <div class="projection-result">
+    <div class="proj-title">What-If Projection (FTE)</div>
+    <div class="proj-grid">
+      <div class="proj-item"><div class="proj-item-val" id="wiMonthlyPace" style="color:var(--coral)">–</div><div class="proj-item-label">Monthly Pace</div></div>
+      <div class="proj-item"><div class="proj-item-val" id="wiHiresRemaining" style="color:var(--coral)">–</div><div class="proj-item-label">Est. FTE Remaining</div></div>
+      <div class="proj-item"><div class="proj-item-val" id="wiTotal" style="color:var(--amber)">–</div><div class="proj-item-label">Projected Q1 Total</div></div>
+      <div class="proj-item"><div class="proj-item-val" id="wiGap" style="color:var(--red)">–</div><div class="proj-item-label">Gap to Goal (46)</div></div>
+    </div>
+  </div>
+  <div class="hist-row">
+    <div class="card">
+      <div class="card-title">Quarterly Hiring History (FTE)</div>
+      <div class="chart-container" style="height:200px"><canvas id="histChart"></canvas></div>
+      <div class="analysis-note"><strong>Context:</strong> Q4 FY26 at 76 accepted FTEs. Q3 FY26 dipped to 41. Q1 trending toward a similar mid-year slowdown. OAR has declined from 81% in Q4 to 75% in Q1.</div>
+    </div>
+    <div class="card">
+      <div class="card-title">OAR by Level (Q1 Actuals)</div>
+      <div class="oar-row" id="oarByLevel"></div>
+      <div class="analysis-note risk"><strong>⚠ Critical — L4:</strong> 56% OAR means nearly half of Staff-level offers are being lost, exclusively to comp. Addressing comp bands for L4 is the highest-leverage action this quarter.</div>
+    </div>
+  </div>
+  <div class="decline-row">
+    <div class="card">
+      <div class="card-title">L4 Offer Decline Reasons <span>Q1 · 8 total declines · OAR 56%</span></div>
+      <div class="insight-callout"><strong>⚠️ 100% of Q1 L4 declines are compensation-related.</strong> Cash Compensation accounts for 75% (6 of 8); Equity Compensation the remaining 25% (2 of 8).</div>
+      <div id="l4DeclineContainer"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Decline Reasons by Level <span>Q1 (May–Jul 2026) · excl. interns</span></div>
+      <div class="chart-container" style="height:220px"><canvas id="declineCompChart"></canvas></div>
+      <div class="analysis-note"><strong>Pattern:</strong> L4 is the only level with meaningful Q1 decline volume (8). L1 and L3 are accepting at 100%. The problem is concentrated at Staff level.</div>
+    </div>
+  </div>
   <div class="risks-row" id="risksContainer"></div>
   <div id="teamAcceptedOffers" style="display:none"></div>
-  <div class="card" style="margin-top:16px" id="openHCSection"><div class="card-title">Open Headcount <span id="openHCSubtitle">Q1 FY27 · Loading…</span></div><div class="scroll-table-wrap" id="openHCTableWrap"><table id="openHCTable" class="req-table"><thead><tr><th>Req ID</th><th>Job Title</th><th>Org</th><th>Team</th><th>Level</th><th>Recruiter</th><th>Hiring PE</th><th>Priority</th><th>Start Date</th></tr></thead><tbody id="openHCTableBody"><tr><td colspan="9" style="padding:20px;text-align:center;font-style:italic;font-size:11px;color:var(--ink-60)">Loading open headcount…</td></tr></tbody></table></div></div>
+  <div class="card" style="margin-top:16px" id="openHCSection">
+    <div class="card-title">Open Headcount <span id="openHCSubtitle">Q1 FY27 · Loading…</span></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:flex-end">
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:10px;color:var(--ink-60);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Organization</label>
+        <select id="hcFilterOrg" onchange="renderOpenHCTable()" style="font-size:12px;padding:6px 10px;border:var(--border);border-radius:10px;background:var(--bg);color:var(--ink);min-width:140px;font-family:'Nunito',sans-serif;outline:none"><option value="">All</option></select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:10px;color:var(--ink-60);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Recruiter</label>
+        <select id="hcFilterRec" onchange="renderOpenHCTable()" style="font-size:12px;padding:6px 10px;border:var(--border);border-radius:10px;background:var(--bg);color:var(--ink);min-width:140px;font-family:'Nunito',sans-serif;outline:none"><option value="">All</option></select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:10px;color:var(--ink-60);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Level</label>
+        <select id="hcFilterLevel" onchange="renderOpenHCTable()" style="font-size:12px;padding:6px 10px;border:var(--border);border-radius:10px;background:var(--bg);color:var(--ink);min-width:100px;font-family:'Nunito',sans-serif;outline:none"><option value="">All</option></select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:10px;color:var(--ink-60);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Hiring PE</label>
+        <select id="hcFilterPE" onchange="renderOpenHCTable()" style="font-size:12px;padding:6px 10px;border:var(--border);border-radius:10px;background:var(--bg);color:var(--ink);min-width:140px;font-family:'Nunito',sans-serif;outline:none"><option value="">All</option></select>
+      </div>
+      <div><button onclick="clearHCFilters()" style="font-size:11px;padding:7px 12px;border:var(--border);border-radius:10px;background:none;color:var(--ink-60);cursor:pointer;font-family:'Nunito',sans-serif;font-weight:600;transition:background .15s" onmouseover="this.style.background='var(--ink-20)'" onmouseout="this.style.background='none'">Clear filters</button></div>
+    </div>
+    <div class="scroll-table-wrap" id="openHCTableWrap">
+      <table id="openHCTable" class="req-table">
+        <thead><tr>
+          <th style="white-space:nowrap">Req ID</th><th>Job Title</th>
+          <th style="white-space:nowrap">Org</th><th style="white-space:nowrap">Team</th>
+          <th style="white-space:nowrap">Level</th><th style="white-space:nowrap">Recruiter</th>
+          <th style="white-space:nowrap">Hiring PE</th><th style="white-space:nowrap">Priority</th>
+          <th style="white-space:nowrap">Start Date</th>
+        </tr></thead>
+        <tbody id="openHCTableBody">
+          <tr><td colspan="9" style="padding:20px 10px;color:var(--ink-60);text-align:center;font-style:italic;font-size:11px">Loading open headcount…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="scroll-hint-bar" id="openHCScrollHint" style="display:none">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 2v6M2 6l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Scroll for more
+    </div>
+  </div>
 </div>
 </div>
-<div id="recruiterView" style="display:none"><div class="container" id="recruiterContent"></div></div>
-<div class="footer" id="footerText"></div>
+
+<!-- Recruiter view -->
+<div id="recruiterView" style="display:none">
+  <div class="container" id="recruiterContent"></div>
+</div>
+
+<div class="footer" id="footerText">Data sourced from Greenhouse via Google Sheets · Gusto Engineering Recruiting</div>
 <div id="toast"></div>
+
+<!-- Bottom bar -->
 <div id="bottomBar">
-  <div class="bb-stat"><div class="bb-val" id="bbGoal">16</div><div class="bb-lbl">Q1 Goal</div></div><div class="bb-sep"></div>
-  <div class="bb-stat"><div class="bb-val" id="bbAccepted" style="color:#6DE0D0">–</div><div class="bb-lbl">Accepted</div></div><div class="bb-sep"></div>
-  <div class="bb-stat"><div class="bb-val" id="bbOAR" style="color:#F5A95A">–</div><div class="bb-lbl">Team OAR</div></div><div class="bb-sep"></div>
-  <div class="bb-stat"><div class="bb-val" id="bbProjected" style="color:#F5A95A">–</div><div class="bb-lbl">Projected</div></div><div class="bb-sep"></div>
+  <div class="bb-stat"><div class="bb-val" id="bbGoal">46</div><div class="bb-lbl">Q1 Goal</div></div>
+  <div class="bb-sep"></div>
+  <div class="bb-stat"><div class="bb-val" id="bbAccepted" style="color:#6DE0D0">–</div><div class="bb-lbl">Accepted</div></div>
+  <div class="bb-sep"></div>
+  <div class="bb-stat"><div class="bb-val" id="bbOAR" style="color:#F5A95A">–</div><div class="bb-lbl">Team OAR</div></div>
+  <div class="bb-sep"></div>
+  <div class="bb-stat"><div class="bb-val" id="bbProjected" style="color:#F5A95A">–</div><div class="bb-lbl">Projected</div></div>
+  <div class="bb-sep"></div>
   <div class="bb-stat"><div class="bb-val" id="bbDays" style="color:rgba(255,255,255,.6)">–</div><div class="bb-lbl">Days Left</div></div>
 </div>
+
+<!-- Bottom bar updater -->
 <script>
 (function() {
   function updateBottomBar() {
-    const acc = document.getElementById('kpiAccepted'); const oar = document.getElementById('teamOARVal'); const proj = document.getElementById('kpiProjected'); const days = document.getElementById('teamDaysHeader');
-    if (acc) document.getElementById('bbAccepted').textContent = acc.textContent;
-    if (oar) document.getElementById('bbOAR').textContent = oar.textContent;
+    const acc = document.getElementById('kpiAccepted');
+    const oar = document.getElementById('teamOARVal');
+    const proj = document.getElementById('kpiProjected');
+    const days = document.getElementById('teamDaysHeader');
+    if (acc)  document.getElementById('bbAccepted').textContent  = acc.textContent;
+    if (oar)  document.getElementById('bbOAR').textContent       = oar.textContent;
     if (proj) document.getElementById('bbProjected').textContent = proj.textContent;
-    if (days) document.getElementById('bbDays').textContent = days.textContent + 'd';
+    if (days) document.getElementById('bbDays').textContent      = days.textContent + 'd';
   }
-  setInterval(updateBottomBar, 1500); document.addEventListener('DOMContentLoaded', updateBottomBar);
+  setInterval(updateBottomBar, 1500);
+  document.addEventListener('DOMContentLoaded', updateBottomBar);
 })();
 </script>
+
+<!-- Shared Dashboard Logic -->
 <script src="../shared.js"></script>
 </body>
 </html>
