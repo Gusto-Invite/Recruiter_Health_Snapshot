@@ -4,8 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Invite Recruiting · Hiring at a Glance</title>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Song+Myung&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Song+Myung&family=Playfair+Display:wght@800&display=swap" rel="stylesheet">
 <style>
 :root {
   --coral:  #F45D48;
@@ -16,550 +15,334 @@
   --white:  #FFFFFF;
   --teal:   #0A8080;
   --amber:  #D97706;
-  --red:    #D93025;
   --purple: #6B55D6;
   --green:  #10B981;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
+html { overflow-x: hidden; }
 body {
   font-family: 'Nunito', -apple-system, sans-serif;
   background: var(--bg);
   color: var(--ink);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
-/* ── Header ── */
-header {
-  background: var(--white);
-  border-bottom: 1px solid var(--ink-20);
-  padding: 0 40px;
-  display: flex; align-items: center; justify-content: space-between;
-  height: 60px; position: sticky; top: 0; z-index: 200;
-  box-shadow: 0 1px 0 var(--ink-20);
-}
-.logo { display: flex; align-items: center; gap: 12px; }
-.logo-text { font-size: 18px; font-weight: 900; letter-spacing: -.5px; color: var(--coral); }
-.logo-sep  { color: var(--ink-20); font-weight: 300; font-size: 20px; margin: 0 4px; }
-.logo-sub  { font-size: 13px; font-weight: 600; color: var(--ink-60); }
-.header-right { display: flex; align-items: center; gap: 10px; }
-.as-of { font-size: 12px; color: var(--ink-60); }
-.live-badge {
-  background: linear-gradient(135deg, var(--coral), #F5895A);
-  color: #fff; padding: 3px 10px; border-radius: 20px;
-  font-size: 11px; font-weight: 700; letter-spacing: .5px;
-}
+/* ── Page shell ── */
+.page { max-width: 1100px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 48px) 80px; position: relative; z-index: 1; }
 
-/* ── Page ── */
-.page { max-width: 1200px; margin: 0 auto; padding: 0 48px 80px; }
-
-/* ── Hero ── */
-.hero {
+/* ── Hero section ── */
+.hero-section {
+  position: relative;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 64px;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  padding: 80px 0 72px;
-  border-bottom: 2px solid var(--ink-20);
-  margin-bottom: 60px;
+  gap: clamp(24px, 5vw, 60px);
+  padding: clamp(40px, 6vw, 72px) 0 clamp(36px, 5vw, 64px);
 }
-.hero-left {}
+
+/* Soft blob shapes — fixed to page so they never get clipped */
+.blob {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+.blob-coral {
+  width: 600px; height: 520px;
+  background: radial-gradient(circle, rgba(244,93,72,.18) 0%, rgba(244,93,72,.05) 55%, transparent 100%);
+  top: -140px; right: -160px;
+}
+.blob-teal {
+  width: 480px; height: 420px;
+  background: radial-gradient(circle, rgba(10,128,128,.14) 0%, rgba(10,128,128,.04) 55%, transparent 100%);
+  top: 240px; left: -100px;
+}
+
+/* ── Left hero content ── */
+.hero-left { position: relative; z-index: 1; }
 .hero-eyebrow {
-  font-size: 11px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 2.5px; color: var(--coral); margin-bottom: 16px;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 2px; color: var(--coral); margin-bottom: 20px;
+}
+.hero-eyebrow-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--coral); flex-shrink: 0;
 }
 .hero-headline {
-  font-family: 'Song Myung', Georgia, serif;
-  font-size: 64px; font-weight: 400; letter-spacing: -2px;
-  color: var(--ink); line-height: 1.05; margin-bottom: 20px;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: clamp(38px, 5.2vw, 64px); font-weight: 800; letter-spacing: -1px;
+  line-height: 1.05; color: var(--ink); margin-bottom: 20px;
 }
+.hero-headline .teal { color: var(--teal); }
 .hero-sub {
-  font-size: 17px; color: var(--ink-60); line-height: 1.65;
-  max-width: 420px; margin-bottom: 32px;
+  font-size: 15px; color: var(--ink-60); line-height: 1.7;
+  max-width: 440px; font-weight: 600;
 }
-.hero-meta {
-  display: flex; gap: 24px; flex-wrap: wrap;
-}
-.hero-meta-item {
-  display: flex; align-items: center; gap: 7px;
-  font-size: 12px; font-weight: 700; color: var(--ink-60);
-}
-.hero-meta-dot { width: 8px; height: 8px; border-radius: 50%; }
+.hero-sub-line { display: block; }
 
-/* ── Hero right stats ── */
-.hero-right {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+/* ── Right stats ── */
+.hero-stats {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column;
+  min-width: 160px; text-align: right; flex-shrink: 0;
 }
-.stat-card {
-  background: var(--white);
-  border: 1px solid var(--ink-20);
-  border-radius: 20px;
-  padding: 24px 28px;
-  box-shadow: 0 1px 3px rgba(34,37,37,.06);
-  display: flex; align-items: center; gap: 20px;
-  transition: box-shadow .15s, transform .15s;
+.hero-stat { padding: 18px 0; }
+.hero-stat + .hero-stat { border-top: 1px solid var(--ink-20); }
+.hero-stat-val {
+  font-size: clamp(36px, 4vw, 52px); font-weight: 900; letter-spacing: -2px;
+  line-height: 1; margin-bottom: 4px;
 }
-.stat-card:hover { box-shadow: 0 8px 28px rgba(34,37,37,.10); transform: translateY(-1px); }
-.stat-icon {
-  width: 48px; height: 48px; border-radius: 14px;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; font-size: 20px;
+.hero-stat-lbl {
+  font-size: 10px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 1.8px; color: var(--ink-60);
 }
-.stat-body { flex: 1; }
-.stat-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.3px; color: var(--ink-60); margin-bottom: 4px; }
-.stat-value { font-size: 40px; font-weight: 900; letter-spacing: -2px; line-height: 1; }
-.stat-sub   { font-size: 12px; color: var(--ink-60); margin-top: 4px; }
-.stat-trend { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 20px; flex-shrink: 0; }
 
-/* ── Section header ── */
-.section-header {
-  display: flex; align-items: baseline; gap: 14px; margin-bottom: 28px;
+/* ── Divider ── */
+.section-divider {
+  height: 0; margin-bottom: 40px;
 }
-.section-title {
-  font-family: 'Song Myung', Georgia, serif;
-  font-size: 30px; font-weight: 400; letter-spacing: -.8px;
-}
-.section-sub { font-size: 13px; color: var(--ink-60); }
 
 /* ── Team grid ── */
 .team-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 16px;
-  margin-bottom: 60px;
+  gap: 12px;
 }
-
+@keyframes cardGlow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--tca, rgba(244,93,72,0)); }
+  50%       { box-shadow: 0 0 18px 5px var(--tca, rgba(244,93,72,.22)); }
+}
 .team-card {
-  background: var(--white);
-  border: 1.5px solid var(--ink-20);
-  border-radius: 20px;
-  padding: 28px 24px;
+  background: color-mix(in srgb, var(--tc, var(--coral)) 7%, transparent);
+  border: 1.5px solid var(--tc, var(--coral));
+  border-radius: 16px;
+  padding: 18px 16px 16px;
   text-decoration: none;
   color: var(--ink);
-  display: flex; flex-direction: column; gap: 0;
+  display: flex; flex-direction: column;
+  animation: cardGlow 3.5s ease-in-out infinite;
   cursor: pointer;
-  transition: box-shadow .18s, transform .18s, border-color .18s;
-  position: relative; overflow: hidden;
 }
-.team-card::before {
-  content: '';
-  position: absolute; top: 0; left: 0; right: 0; height: 4px;
-  background: var(--team-color, var(--coral));
-  border-radius: 20px 20px 0 0;
-}
+.team-card:nth-child(2) { animation-delay: .7s; }
+.team-card:nth-child(3) { animation-delay: 1.4s; }
+.team-card:nth-child(4) { animation-delay: 2.1s; }
+.team-card:nth-child(5) { animation-delay: 2.8s; }
 .team-card:hover {
-  box-shadow: 0 12px 36px rgba(34,37,37,.12);
+  animation: none;
   transform: translateY(-3px);
-  border-color: var(--team-color, var(--coral));
+  box-shadow: 0 0 28px 8px var(--tca, rgba(244,93,72,.32));
+  border-width: 2px;
+  transition: transform .18s, box-shadow .18s, border-width .18s;
 }
-.team-dot {
-  width: 10px; height: 10px; border-radius: 50%;
-  background: var(--team-color, var(--coral));
-  margin-bottom: 18px;
+.team-card-top {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
 }
-.team-card-name {
-  font-family: 'Song Myung', Georgia, serif;
-  font-size: 20px; font-weight: 400; letter-spacing: -.3px;
-  color: var(--ink); margin-bottom: 4px;
-  line-height: 1.2;
+.team-arrow {
+  font-size: 13px; color: var(--tc, var(--coral)); font-weight: 700;
+  opacity: .5; transition: opacity .15s, transform .15s;
 }
-.team-card-lead {
-  font-size: 11px; color: var(--ink-60); margin-bottom: 20px;
-  font-weight: 600;
+.team-card:hover .team-arrow { opacity: 1; transform: translateX(3px); }
+.team-name {
+  font-size: 9px; font-weight: 800; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--tc, var(--coral));
+  margin-bottom: 6px;
 }
-.team-card-recs {
-  font-size: 24px; font-weight: 900; color: var(--ink); letter-spacing: -1px; line-height: 1;
+.team-oar {
+  font-size: 32px; font-weight: 900; letter-spacing: -1.5px;
+  line-height: 1; color: var(--ink);
+  margin-bottom: 4px;
 }
-.team-card-recs-label {
-  font-size: 10px; font-weight: 700; color: var(--ink-60); text-transform: uppercase;
-  letter-spacing: .9px; margin-top: 3px;
+.team-oar-lbl {
+  font-size: 10px; font-weight: 700; color: var(--ink-60);
+  text-transform: uppercase; letter-spacing: 1px;
+  margin-bottom: 10px;
 }
-.team-card-arrow {
-  position: absolute; bottom: 22px; right: 22px;
-  width: 28px; height: 28px; border-radius: 50%;
-  background: var(--team-color, var(--coral));
-  display: flex; align-items: center; justify-content: center;
-  opacity: 0; transition: opacity .18s;
+.team-bar-wrap {
+  height: 2px; background: var(--ink-20); border-radius: 1px;
+  overflow: hidden; margin-bottom: 8px;
 }
-.team-card:hover .team-card-arrow { opacity: 1; }
-.team-card-arrow svg { width: 12px; height: 12px; }
+.team-bar { height: 100%; border-radius: 1px; background: var(--tc, var(--coral)); transition: width .4s; }
+.team-reqs {
+  font-size: 10px; color: var(--ink-60); font-weight: 600; margin-top: auto;
+}
 
-/* ── Invite-wide summary strip ── */
-.summary-strip {
-  display: grid; grid-template-columns: repeat(4, 1fr);
-  gap: 1px; background: var(--ink-20);
-  border-radius: 16px; overflow: hidden;
-  margin-bottom: 48px;
-  border: 1px solid var(--ink-20);
+/* ── Card throw overlay ── */
+#card-throw-ov {
+  display: none;
+  position: fixed;
+  z-index: 9999;
+  overflow: hidden;
+  pointer-events: none;
+  will-change: transform;
 }
-.summary-item {
-  background: var(--white);
-  padding: 20px 24px;
-  text-align: center;
-}
-.summary-val { font-size: 32px; font-weight: 900; letter-spacing: -1.2px; line-height: 1; margin-bottom: 4px; }
-.summary-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-60); }
 
 /* ── Responsive ── */
-@media (max-width: 1024px) {
-  .hero { grid-template-columns: 1fr; gap: 40px; padding: 60px 0 52px; }
-  .hero-headline { font-size: 48px; }
+@media (max-width: 860px) {
+  .hero-section { grid-template-columns: 1fr; gap: 32px; }
+  .hero-stats { text-align: left; flex-direction: row; gap: 0; flex-wrap: wrap; }
+  .hero-stat { flex: 1; min-width: 120px; padding: 16px 20px 16px 0; }
+  .hero-stat + .hero-stat {
+    border-top: none;
+    border-left: 1px solid var(--ink-20);
+    padding-left: 20px;
+  }
   .team-grid { grid-template-columns: repeat(3, 1fr); }
-  .summary-strip { grid-template-columns: repeat(2, 1fr); }
 }
-@media (max-width: 640px) {
-  .page { padding: 0 24px 60px; }
-  header { padding: 0 24px; }
-  .hero-headline { font-size: 36px; }
+@media (max-width: 560px) {
   .team-grid { grid-template-columns: 1fr 1fr; }
+  .hero-stats { flex-direction: column; }
+  .hero-stat { padding: 12px 0; }
+  .hero-stat + .hero-stat { border-left: none; border-top: 1px solid var(--ink-20); padding-left: 0; }
 }
 </style>
 </head>
 <body>
-
-<!-- Animated Background -->
-<div aria-hidden="true" style="position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden">
-  <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <pattern id="bdots" x="0" y="0" width="36" height="36" patternUnits="userSpaceOnUse">
-        <circle cx="2" cy="2" r="1.6" fill="#0A8080"/>
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#bdots)" opacity="0.055"/>
-  </svg>
-</div>
-<canvas id="bgCanvas" aria-hidden="true" style="position:fixed;inset:0;z-index:-1;pointer-events:none;width:100%;height:100%"></canvas>
-<script>
-(function(){
-  const canvas = document.getElementById('bgCanvas');
-  const ctx = canvas.getContext('2d');
-  function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-  resize();
-  window.addEventListener('resize', resize);
-  const spheres = [
-    { color:'#F45D48', r:500, x:0, y:0, vx:0.18, vy:0.15, rings:[380,240], alpha:0.055 },
-    { color:'#0A8080', r:520, x:0, y:0, vx:-0.15,vy:-0.18, rings:[380,240], alpha:0.05  },
-    { color:'#6B55D6', r:160, x:0, y:0, vx:0.24, vy:-0.12, rings:[100],     alpha:0.035 },
-  ];
-  function setPos() {
-    spheres[0].x = canvas.width  * 0.90; spheres[0].y = canvas.height * 0.08;
-    spheres[1].x = canvas.width  * 0.06; spheres[1].y = canvas.height * 0.88;
-    spheres[2].x = canvas.width  * 0.92; spheres[2].y = canvas.height * 0.60;
-  }
-  setPos();
-  window.addEventListener('resize', setPos);
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    spheres.forEach(s => {
-      s.x += s.vx; s.y += s.vy;
-      const pad = s.r * 0.4;
-      if (s.x < -pad) { s.x = -pad; s.vx = Math.abs(s.vx); }
-      if (s.x > canvas.width  + pad) { s.x = canvas.width  + pad; s.vx = -Math.abs(s.vx); }
-      if (s.y < -pad) { s.y = -pad; s.vy = Math.abs(s.vy); }
-      if (s.y > canvas.height + pad) { s.y = canvas.height + pad; s.vy = -Math.abs(s.vy); }
-      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
-      ctx.fillStyle = s.color; ctx.globalAlpha = s.alpha; ctx.fill();
-      s.rings.forEach((rr, i) => {
-        ctx.beginPath(); ctx.arc(s.x, s.y, rr, 0, Math.PI*2);
-        ctx.strokeStyle = s.color; ctx.lineWidth = i === 0 ? 2.5 : 1.5;
-        ctx.globalAlpha = s.alpha * 1.5; ctx.stroke();
-      });
-    });
-    ctx.globalAlpha = 1;
-    requestAnimationFrame(draw);
-  }
-  draw();
-})();
-</script>
-
-<!-- Header -->
-<header>
-  <div class="logo">
-    <svg width="28" height="28" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M11 2C6.03 2 2 6.03 2 11s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 4a5 5 0 0 1 4.9 4H11V6zm-1 0v4H6.1A5 5 0 0 1 10 6zm-4 5h4v4a5 5 0 0 1-4-4zm5 4V11h4a5 5 0 0 1-4 4z" fill="#F45D48"/>
-    </svg>
-    <span class="logo-text">gusto</span>
-    <span class="logo-sep">|</span>
-    <span class="logo-sub">Invite Recruiting</span>
-  </div>
-  <div class="header-right">
-    <span class="as-of" id="updatedAt">Loading…</span>
-    <span class="live-badge">LIVE</span>
-  </div>
-</header>
-
 <div class="page">
-
   <!-- Hero -->
-  <div class="hero">
+  <div class="hero-section">
+    <!-- Background blobs -->
+    <div class="blob blob-coral"></div>
+    <div class="blob blob-teal"></div>
+
+    <!-- Left -->
     <div class="hero-left">
-      <div class="hero-eyebrow">Invite</div>
-      <div class="hero-headline">Hiring at<br>a Glance</div>
-      <div class="hero-sub">Live recruiting metrics across all five Invite teams — Q1 FY27 · May through July 2026.</div>
-      <div class="hero-meta">
-        <div class="hero-meta-item">
-          <div class="hero-meta-dot" style="background:var(--coral)"></div>
-          <span id="metaDaysLeft">– days left in Q1</span>
-        </div>
-        <div class="hero-meta-item">
-          <div class="hero-meta-dot" style="background:var(--teal)"></div>
-          <span id="metaElapsed">–% elapsed</span>
-        </div>
-        <div class="hero-meta-item">
-          <div class="hero-meta-dot" style="background:var(--ink-20)"></div>
-          <span>5 teams · 36 recruiters</span>
-        </div>
+      <div class="hero-eyebrow">
+        <div class="hero-eyebrow-dot"></div>
+        <span>Invite &nbsp;·&nbsp; Q1 FY27</span>
+      </div>
+      <div class="hero-headline">
+        Hiring at<br><span class="teal">a Glance.</span>
+      </div>
+      <div class="hero-sub">
+        <span class="hero-sub-line">May 1 – Jul 31, 2026 &nbsp;·&nbsp; <span id="daysRemaining">–</span> days remaining</span>
+        <span class="hero-sub-line">Select a team below to open its dashboard</span>
       </div>
     </div>
-    <div class="hero-right">
-      <!-- Accepted Offers -->
-      <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(10,128,128,.10)">
-          <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M3.5 11.5 L8.5 16.5 L18.5 6.5" stroke="#0A8080" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </div>
-        <div class="stat-body">
-          <div class="stat-label">Accepted Offers</div>
-          <div class="stat-value" id="heroAccepted" style="color:var(--teal)">–</div>
-          <div class="stat-sub" id="heroAcceptedSub">Q1 FY27 · excl. interns</div>
-        </div>
-        <div class="stat-trend" id="heroAcceptedBadge" style="background:rgba(10,128,128,.10);color:var(--teal)">–</div>
+
+    <!-- Right stats -->
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="hero-stat-val" id="statAccepted" style="color:var(--teal)">–</div>
+        <div class="hero-stat-lbl">Accepted</div>
       </div>
-      <!-- OAR -->
-      <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(244,93,72,.10)">
-          <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="8" cy="8" r="3.5" stroke="#F45D48" stroke-width="2"/><circle cx="14" cy="14" r="3.5" stroke="#F45D48" stroke-width="2"/><path d="M4.5 17.5 L17.5 4.5" stroke="#F45D48" stroke-width="1.8" stroke-linecap="round"/></svg>
-        </div>
-        <div class="stat-body">
-          <div class="stat-label">Offer Acceptance Rate</div>
-          <div class="stat-value" id="heroOAR" style="color:var(--coral)">–</div>
-          <div class="stat-sub" id="heroOARSub">Engineering team · Q1 actuals</div>
-        </div>
-        <div class="stat-trend" id="heroOARBadge" style="background:rgba(244,93,72,.10);color:var(--coral)">–</div>
+      <div class="hero-stat">
+        <div class="hero-stat-val" id="statOAR" style="color:var(--coral)">–</div>
+        <div class="hero-stat-lbl">Team OAR</div>
       </div>
-      <!-- Time to Hire -->
-      <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(217,119,6,.10)">
-          <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="12" r="8" stroke="#D97706" stroke-width="2"/><path d="M11 4V2M11 12 L14.5 9" stroke="#D97706" stroke-width="2" stroke-linecap="round"/></svg>
-        </div>
-        <div class="stat-body">
-          <div class="stat-label">Avg. Time to Hire</div>
-          <div class="stat-value" id="heroTTH" style="color:var(--amber)">–</div>
-          <div class="stat-sub">Days · offer accepted to start date</div>
-        </div>
-        <div class="stat-trend" style="background:rgba(217,119,6,.10);color:var(--amber)">days</div>
+      <div class="hero-stat">
+        <div class="hero-stat-val" id="statTTH" style="color:var(--amber)">–</div>
+        <div class="hero-stat-lbl">Time to Hire</div>
       </div>
     </div>
   </div>
 
-  <!-- Invite-wide summary -->
-  <div class="section-header">
-    <div class="section-title">Invite at a Glance</div>
-    <div class="section-sub">Q1 FY27 · All teams combined</div>
-  </div>
-  <div class="summary-strip" style="margin-bottom:48px">
-    <div class="summary-item">
-      <div class="summary-val" id="sumGoal" style="color:var(--coral)">108</div>
-      <div class="summary-lbl">Q1 Combined Goal</div>
-    </div>
-    <div class="summary-item">
-      <div class="summary-val" id="sumAccepted" style="color:var(--teal)">–</div>
-      <div class="summary-lbl">Accepted (Eng)</div>
-    </div>
-    <div class="summary-item">
-      <div class="summary-val" id="sumOAR" style="color:var(--coral)">–</div>
-      <div class="summary-lbl">Eng OAR</div>
-    </div>
-    <div class="summary-item">
-      <div class="summary-val" id="sumDays" style="color:var(--ink)">–</div>
-      <div class="summary-lbl">Days Remaining</div>
-    </div>
-  </div>
+  <!-- Divider -->
+  <div class="section-divider"></div>
 
-  <!-- Team nav -->
-  <div class="section-header">
-    <div class="section-title">Select Your Team</div>
-    <div class="section-sub">Each team has its own live dashboard</div>
-  </div>
+  <!-- Team cards -->
   <div class="team-grid">
-    <a href="engineering/" class="team-card" style="--team-color:#F45D48">
-      <div class="team-dot"></div>
-      <div class="team-card-name">Engineering</div>
-      <div class="team-card-lead">PE: Jaime Tavarez</div>
-      <div class="team-card-recs">10</div>
-      <div class="team-card-recs-label">Recruiters</div>
-      <div class="team-card-arrow">
-        <svg viewBox="0 0 12 12" fill="none"><path d="M2 6h8M7 3l3 3-3 3" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </div>
-    </a>
-    <a href="gtm/" class="team-card" style="--team-color:#0A8080">
-      <div class="team-dot"></div>
-      <div class="team-card-name">GTM</div>
-      <div class="team-card-lead">PE: Lisa Pham</div>
-      <div class="team-card-recs">4</div>
-      <div class="team-card-recs-label">Recruiters</div>
-      <div class="team-card-arrow">
-        <svg viewBox="0 0 12 12" fill="none"><path d="M2 6h8M7 3l3 3-3 3" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </div>
-    </a>
-    <a href="cx/" class="team-card" style="--team-color:#6B55D6">
-      <div class="team-dot"></div>
-      <div class="team-card-name">CX</div>
-      <div class="team-card-lead">PE: Michelle Cordray</div>
-      <div class="team-card-recs">5</div>
-      <div class="team-card-recs-label">Recruiters</div>
-      <div class="team-card-arrow">
-        <svg viewBox="0 0 12 12" fill="none"><path d="M2 6h8M7 3l3 3-3 3" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </div>
-    </a>
-    <a href="spectech/" class="team-card" style="--team-color:#D97706">
-      <div class="team-dot"></div>
-      <div class="team-card-name">SpecTech</div>
-      <div class="team-card-lead">PE: Kebone Moloko</div>
-      <div class="team-card-recs">7</div>
-      <div class="team-card-recs-label">Recruiters</div>
-      <div class="team-card-arrow">
-        <svg viewBox="0 0 12 12" fill="none"><path d="M2 6h8M7 3l3 3-3 3" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </div>
-    </a>
-    <a href="foundation/" class="team-card" style="--team-color:#10B981">
-      <div class="team-dot"></div>
-      <div class="team-card-name">Foundation</div>
-      <div class="team-card-lead">PE: Teresa Waggoner</div>
-      <div class="team-card-recs">11</div>
-      <div class="team-card-recs-label">Recruiters</div>
-      <div class="team-card-arrow">
-        <svg viewBox="0 0 12 12" fill="none"><path d="M2 6h8M7 3l3 3-3 3" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </div>
-    </a>
-  </div>
 
+    <a href="engineering/" class="team-card" style="--tc:#F45D48;--tca:rgba(244,93,72,.28)">
+      <div class="team-card-top">
+        <div class="team-name">Engineering</div>
+        <div class="team-arrow">→</div>
+      </div>
+      <div class="team-oar" id="oarEngineering">–</div>
+      <div class="team-oar-lbl">OAR</div>
+      <div class="team-bar-wrap"><div class="team-bar" id="barEngineering" style="width:0%"></div></div>
+      <div class="team-reqs" id="reqsEngineering">– open reqs</div>
+    </a>
+
+    <a href="gtm/" class="team-card" style="--tc:#0A8080;--tca:rgba(10,128,128,.28)">
+      <div class="team-card-top">
+        <div class="team-name">GTM</div>
+        <div class="team-arrow">→</div>
+      </div>
+      <div class="team-oar" id="oarGTM">–</div>
+      <div class="team-oar-lbl">OAR</div>
+      <div class="team-bar-wrap"><div class="team-bar" id="barGTM" style="width:0%"></div></div>
+      <div class="team-reqs" id="reqsGTM">– open reqs</div>
+    </a>
+
+    <a href="cx/" class="team-card" style="--tc:#6B55D6;--tca:rgba(107,85,214,.28)">
+      <div class="team-card-top">
+        <div class="team-name">CX</div>
+        <div class="team-arrow">→</div>
+      </div>
+      <div class="team-oar" id="oarCX">–</div>
+      <div class="team-oar-lbl">OAR</div>
+      <div class="team-bar-wrap"><div class="team-bar" id="barCX" style="width:0%"></div></div>
+      <div class="team-reqs" id="reqsCX">– open reqs</div>
+    </a>
+
+    <a href="spectech/" class="team-card" style="--tc:#D97706;--tca:rgba(217,119,6,.28)">
+      <div class="team-card-top">
+        <div class="team-name">SpecTech</div>
+        <div class="team-arrow">→</div>
+      </div>
+      <div class="team-oar" id="oarSpecTech">–</div>
+      <div class="team-oar-lbl">OAR</div>
+      <div class="team-bar-wrap"><div class="team-bar" id="barSpecTech" style="width:0%"></div></div>
+      <div class="team-reqs" id="reqsSpecTech">– open reqs</div>
+    </a>
+
+    <a href="foundation/" class="team-card" style="--tc:#10B981;--tca:rgba(16,185,129,.28)">
+      <div class="team-card-top">
+        <div class="team-name">Foundation</div>
+        <div class="team-arrow">→</div>
+      </div>
+      <div class="team-oar" id="oarFoundation">–</div>
+      <div class="team-oar-lbl">OAR</div>
+      <div class="team-bar-wrap"><div class="team-bar" id="barFoundation" style="width:0%"></div></div>
+      <div class="team-reqs" id="reqsFoundation">– open reqs</div>
+    </a>
+
+  </div>
 </div><!-- end .page -->
 
 <script>
-// ── Date math ──
-const today      = new Date();
-const qStart     = new Date('2026-05-01');
-const qEnd       = new Date('2026-07-31');
-const daysElapsed   = Math.max(0, Math.floor((today - qStart) / 86400000));
-const daysTotal     = Math.floor((qEnd - qStart) / 86400000) + 1;
+// ── Date math ──────────────────────────────────────────────────
+const today         = new Date();
+const qEnd          = new Date('2026-07-31');
 const daysRemaining = Math.max(0, Math.floor((qEnd - today) / 86400000));
-const pctThrough    = (daysElapsed / daysTotal * 100).toFixed(1);
+document.getElementById('daysRemaining').textContent = daysRemaining;
 
-document.getElementById('metaDaysLeft').textContent = `${daysRemaining} days left in Q1`;
-document.getElementById('metaElapsed').textContent  = `${pctThrough}% elapsed`;
-document.getElementById('sumDays').textContent       = daysRemaining;
+// ── Engineering fallback data (updated from sheet below) ────────
+const ENG = { accepted: 27, oar: 75, tth: 28, goal: 46 };
 
-document.getElementById('updatedAt').textContent =
-  `Updated ${today.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true})} · ${today.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;
+function applyFallback() {
+  document.getElementById('statAccepted').textContent = ENG.accepted;
+  document.getElementById('statOAR').textContent      = ENG.oar + '%';
+  document.getElementById('statTTH').textContent      = '~' + ENG.tth + 'd';
 
-// ── Fetch Engineering data (same sheet + Apps Script) ──
-const APPS_SCRIPT_URL = 'https://script.google.com/a/macros/gusto.com/s/AKfycbw1GDnQXS_r7ZG2zGyU8w7jjqi6GUzqfHOCzMirkb4jnbOeKQd7GUL2MizKI-soLGA/exec';
-const TOOL = 'mcp__c61042c2-2fb3-4e2e-888c-dce52a6a8c86__fetch';
+  // Engineering card (only live-connected team for now)
+  setCard('Engineering', ENG.oar, ENG.oar, 65);
+  // Other teams show placeholder until their data is connected
+  setCard('GTM',        '–', null, 0);
+  setCard('CX',         '–', null, 0);
+  setCard('SpecTech',   '–', null, 0);
+  setCard('Foundation', '–', null, 0);
+}
+
+function setCard(team, oarDisplay, oarVal, reqs) {
+  const oarEl  = document.getElementById('oar' + team);
+  const barEl  = document.getElementById('bar' + team);
+  const reqsEl = document.getElementById('reqs' + team);
+  if (oarEl)  oarEl.textContent  = oarVal !== null ? oarDisplay + '%' : '–';
+  if (barEl)  barEl.style.width  = (oarVal || 0) + '%';
+  if (reqsEl) reqsEl.textContent = reqs > 0 ? reqs + ' open reqs' : '– open reqs';
+}
+
+applyFallback();
+
+// ── Live fetch ───────────────────────────────────────────────────
+const TOOL           = 'mcp__c61042c2-2fb3-4e2e-888c-dce52a6a8c86__fetch';
 const PIPELINE_SHEET = '1jFTGmMfMgsnkCbPPhgwZDPtbNM0-wIM1Ee-FLvTOZVU';
-
-// Engineering fallback values
-const ENG_ACCEPTED = 27;
-const ENG_OAR      = '75%';
-const ENG_OAR_VAL  = 75;
-const ENG_GOAL     = 46;
-
-// Show fallback immediately
-document.getElementById('heroAccepted').textContent     = ENG_ACCEPTED;
-document.getElementById('heroOAR').textContent          = ENG_OAR;
-document.getElementById('heroTTH').textContent          = '~28';
-document.getElementById('heroAcceptedBadge').textContent = `of ${ENG_GOAL}`;
-document.getElementById('heroOARBadge').textContent     = ENG_OAR_VAL >= 80 ? 'On Track' : ENG_OAR_VAL >= 70 ? 'Watch' : 'At Risk';
-if (ENG_OAR_VAL < 70) {
-  document.getElementById('heroOARBadge').style.cssText = 'background:rgba(217,48,37,.10);color:#D93025;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;flex-shrink:0';
-}
-document.getElementById('sumAccepted').textContent = ENG_ACCEPTED;
-document.getElementById('sumOAR').textContent      = ENG_OAR;
-
-// Try live fetch
-function fetchLiveData() {
-  if (window.cowork && window.cowork.callMcpTool) {
-    window.cowork.callMcpTool(TOOL, {
-      spreadsheet_id: PIPELINE_SHEET,
-      sheet_name: 'Offers [PLEASE DO NOT TOUCH]',
-      cell_range: 'A1:Z500'
-    }).then(r => {
-      try {
-        const txt = extractContent(r);
-        if (!txt || txt.length < 100) return;
-        const rows = txt.split('\n').map(l => l.split('\t').map(c => c.trim())).filter(r => r.some(c => c.length));
-        if (rows.length < 2) return;
-        const hdr = rows[0].map(h => h.toLowerCase());
-        const stageIdx = hdr.findIndex(h => h.includes('stage') || h.includes('status'));
-        const resolvedIdx = hdr.findIndex(h => h.includes('resolved') || h.includes('acceptance'));
-        const startIdx = hdr.findIndex(h => h.includes('start'));
-
-        const Q1_START = new Date('2026-05-01'), Q1_END = new Date('2026-07-31');
-        let accepted = 0, started = 0, pending = 0, totalDays = 0, tthCount = 0;
-
-        for (let i = 1; i < rows.length; i++) {
-          const row = rows[i];
-          if (!row || row.length < 2) continue;
-          const stage = stageIdx >= 0 ? (row[stageIdx]||'').toLowerCase() : '';
-          if (!stage.includes('accept')) continue;
-
-          const resDate = resolvedIdx >= 0 ? new Date(row[resolvedIdx]) : null;
-          if (!resDate || isNaN(resDate) || resDate < Q1_START || resDate > Q1_END) continue;
-
-          accepted++;
-          const startDate = startIdx >= 0 ? new Date(row[startIdx]) : null;
-          if (startDate && !isNaN(startDate) && startDate > today) pending++;
-          else if (startDate && !isNaN(startDate) && startDate <= today) started++;
-
-          if (resDate && startDate && !isNaN(startDate)) {
-            const diff = Math.floor((startDate - resDate) / 86400000);
-            if (diff > 0 && diff < 200) { totalDays += diff; tthCount++; }
-          }
-        }
-
-        if (accepted > 0) {
-          document.getElementById('heroAccepted').textContent = accepted;
-          document.getElementById('heroAcceptedBadge').textContent = `of ${ENG_GOAL}`;
-          document.getElementById('sumAccepted').textContent = accepted;
-        }
-        if (tthCount > 0) {
-          const avgTTH = Math.round(totalDays / tthCount);
-          document.getElementById('heroTTH').textContent = avgTTH;
-        }
-      } catch(e) { console.warn('Landing data parse error:', e); }
-    }).catch(e => console.warn('Landing fetch error:', e));
-  } else {
-    // Apps Script JSONP fallback
-    const cb = 'landing_cb_' + Date.now();
-    window[cb] = function(data) {
-      delete window[cb];
-      try {
-        if (!data || !data.rows) return;
-        const rows = data.rows;
-        let accepted = 0;
-        const Q1_START = new Date('2026-05-01'), Q1_END = new Date('2026-07-31');
-        rows.forEach(row => {
-          const stage = (row.stage || row.status || '').toLowerCase();
-          if (!stage.includes('accept')) return;
-          const d = new Date(row.resolved || row.acceptance_date || '');
-          if (!isNaN(d) && d >= Q1_START && d <= Q1_END) accepted++;
-        });
-        if (accepted > 0) {
-          document.getElementById('heroAccepted').textContent = accepted;
-          document.getElementById('sumAccepted').textContent = accepted;
-        }
-      } catch(e) {}
-      const s = document.getElementById('_lscript');
-      if (s) s.remove();
-    };
-    const script = document.createElement('script');
-    script.id = '_lscript';
-    script.src = `${APPS_SCRIPT_URL}?callback=${cb}&sheet=Offers%20%5BPLEASE%20DO%20NOT%20TOUCH%5D`;
-    document.head.appendChild(script);
-    setTimeout(() => { delete window[cb]; const s = document.getElementById('_lscript'); if(s) s.remove(); }, 12000);
-  }
-}
+const APPS_SCRIPT    = 'https://script.google.com/a/macros/gusto.com/s/AKfycbw1GDnQXS_r7ZG2zGyU8w7jjqi6GUzqfHOCzMirkb4jnbOeKQd7GUL2MizKI-soLGA/exec';
 
 function extractContent(r) {
   if (!r || r.isError) return '';
@@ -570,12 +353,185 @@ function extractContent(r) {
   return '';
 }
 
-// Run after DOM ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', fetchLiveData);
-} else {
-  fetchLiveData();
+async function fetchLive() {
+  if (!window.cowork || !window.cowork.callMcpTool) { appsScriptFallback(); return; }
+
+  try {
+    const r = await window.cowork.callMcpTool(TOOL, {
+      spreadsheet_id: PIPELINE_SHEET,
+      sheet_name: 'Offers [PLEASE DO NOT TOUCH]',
+      cell_range: 'A1:Z600'
+    });
+    const txt = extractContent(r);
+    if (!txt || txt.length < 100) return;
+
+    const rows = txt.split('\n').map(l => l.split('\t').map(c => c.trim())).filter(r => r.some(c => c));
+    if (rows.length < 2) return;
+
+    const hdr        = rows[0].map(h => h.toLowerCase());
+    const stageIdx   = hdr.findIndex(h => h.includes('stage') || h.includes('status'));
+    const resolvedIdx= hdr.findIndex(h => h.includes('resolved') || h.includes('acceptance'));
+    const startIdx   = hdr.findIndex(h => h.includes('start'));
+
+    const Q1S = new Date('2026-05-01'), Q1E = new Date('2026-07-31');
+    let accepted = 0, extended = 0, tthDays = 0, tthN = 0;
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.length < 2) continue;
+      const stage = stageIdx >= 0 ? (row[stageIdx]||'').toLowerCase() : '';
+      const resDate = resolvedIdx >= 0 ? new Date(row[resolvedIdx]) : null;
+      if (!resDate || isNaN(resDate) || resDate < Q1S || resDate > Q1E) continue;
+
+      extended++;
+      if (stage.includes('accept')) {
+        accepted++;
+        const startDate = startIdx >= 0 ? new Date(row[startIdx]) : null;
+        if (startDate && !isNaN(startDate)) {
+          const diff = Math.floor((startDate - resDate) / 86400000);
+          if (diff > 0 && diff < 200) { tthDays += diff; tthN++; }
+        }
+      }
+    }
+
+    if (accepted > 0 || extended > 0) {
+      const oar = extended > 0 ? Math.round(accepted / extended * 100) : ENG.oar;
+      const tth = tthN > 0 ? Math.round(tthDays / tthN) : ENG.tth;
+      document.getElementById('statAccepted').textContent = accepted;
+      document.getElementById('statOAR').textContent      = oar + '%';
+      document.getElementById('statTTH').textContent      = tth + 'd';
+      setCard('Engineering', oar, oar, null);
+    }
+  } catch(e) { console.warn('[Landing] fetch error:', e); }
+
+  // Open HC reqs count
+  try {
+    const r2 = await window.cowork.callMcpTool(TOOL, {
+      spreadsheet_id: PIPELINE_SHEET,
+      sheet_name: 'Open HC [PLEASE DO NOT TOUCH]',
+      cell_range: 'A1:Z300'
+    });
+    const txt2 = extractContent(r2);
+    if (txt2 && txt2.length > 50) {
+      const rows2 = txt2.split('\n').filter(l => l.trim()).length - 1;
+      document.getElementById('reqsEngineering').textContent = Math.max(0, rows2) + ' open reqs';
+    }
+  } catch(e) {}
 }
+
+function appsScriptFallback() {
+  const cb = '_lcb' + Date.now();
+  window[cb] = function(d) {
+    delete window[cb];
+    const s = document.getElementById('_ls'); if (s) s.remove();
+    try {
+      if (!d || !d.rows) return;
+      const Q1S = new Date('2026-05-01'), Q1E = new Date('2026-07-31');
+      let acc = 0, ext = 0;
+      d.rows.forEach(row => {
+        const stage = (row.stage || row.status || '').toLowerCase();
+        const dt = new Date(row.resolved || row.acceptance_date || '');
+        if (!isNaN(dt) && dt >= Q1S && dt <= Q1E) {
+          ext++;
+          if (stage.includes('accept')) acc++;
+        }
+      });
+      if (acc > 0) {
+        document.getElementById('statAccepted').textContent = acc;
+        const oar = ext > 0 ? Math.round(acc / ext * 100) : ENG.oar;
+        document.getElementById('statOAR').textContent = oar + '%';
+        setCard('Engineering', oar, oar, null);
+      }
+    } catch(e) {}
+  };
+  const s = document.createElement('script');
+  s.id = '_ls';
+  s.src = APPS_SCRIPT + '?callback=' + cb + '&sheet=Offers%20%5BPLEASE%20DO%20NOT%20TOUCH%5D';
+  document.head.appendChild(s);
+  setTimeout(() => { delete window[cb]; const s = document.getElementById('_ls'); if(s) s.remove(); }, 12000);
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', fetchLive);
+} else {
+  fetchLive();
+}
+
+// ── Card throw animation ────────────────────────────────────────────────
+(function () {
+  var busy = false;
+
+  function launchCard(card, url) {
+    if (busy) return;
+    busy = true;
+
+    var ov   = document.getElementById('card-throw-ov');
+    var face = document.getElementById('card-throw-face');
+    var tc   = card.style.getPropertyValue('--tc').trim();
+
+    // Clone card contents into overlay face
+    face.innerHTML = card.innerHTML;
+    face.style.cssText = [
+      'position:absolute', 'inset:0', 'display:flex', 'flex-direction:column',
+      'padding:18px 16px 16px', 'border-radius:inherit',
+      'background:color-mix(in srgb,' + tc + ' 7%,#F8F5F2)',
+      'border:1.5px solid ' + tc
+    ].join(';');
+    face.style.setProperty('--tc', tc);
+
+    // Measure card position in viewport
+    var cr   = card.getBoundingClientRect();
+    var tx   = window.innerWidth  / 2 - (cr.left + cr.width  / 2);
+    var ty   = window.innerHeight / 2 - (cr.top  + cr.height / 2);
+    var P    = 'perspective(1100px)';
+    var base = P + ' translate(' + tx + 'px,' + ty + 'px)';
+
+    ov.style.cssText = [
+      'display:block', 'position:fixed',
+      'left:'   + Math.round(cr.left)   + 'px',
+      'top:'    + Math.round(cr.top)    + 'px',
+      'width:'  + Math.round(cr.width)  + 'px',
+      'height:' + Math.round(cr.height) + 'px',
+      'border-radius:16px', 'overflow:hidden',
+      'z-index:9999', 'pointer-events:none',
+      'will-change:transform', 'transition:none',
+      'transform:' + base + ' scale(1) rotateY(0deg) rotateZ(0deg)'
+    ].join(';');
+
+    card.style.visibility = 'hidden';
+
+    // Phase 1 — Wind-up (0 → 380 ms)
+    requestAnimationFrame(function () { requestAnimationFrame(function () {
+      ov.style.transition = 'transform 380ms cubic-bezier(0.0,0.0,0.4,1.0)';
+      ov.style.transform  = base + ' scale(1.8) rotateY(-22deg) rotateZ(-4deg)';
+    }); });
+
+    // Phase 2 — Throw to edge-on (380 → 880 ms)
+    setTimeout(function () {
+      ov.style.transition = 'transform 500ms cubic-bezier(0.55,0,1,1)';
+      ov.style.transform  = base + ' scale(3.4) rotateY(90deg) rotateZ(1deg)';
+    }, 380);
+
+    // Navigate at edge-on — card is invisible, seamless handoff to team page
+    setTimeout(function () {
+      window.location.href = url;
+    }, 880);
+  }
+
+  // Wire all team cards
+  document.querySelectorAll('.team-card').forEach(function (card) {
+    card.addEventListener('click', function (e) {
+      e.preventDefault();
+      launchCard(this, this.getAttribute('href'));
+    });
+  });
+}());
 </script>
+
+<!-- Card throw animation overlay -->
+<div id="card-throw-ov">
+  <div id="card-throw-face"></div>
+</div>
+
 </body>
 </html>
