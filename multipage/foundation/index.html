@@ -584,16 +584,16 @@ window.TEAM_RECRUITERS = [
       <span class="insight-icon">&#128683;</span>
       <div>
         <div class="insight-label">Critical Risk</div>
-        <div class="insight-text">L4 OAR at 56%</div>
-        <div class="insight-sub">100% of declines are comp—escalate band review immediately.</div>
+        <div class="insight-text" id="insightRiskText">Calculating…</div>
+        <div class="insight-sub" id="insightRiskSub"></div>
       </div>
     </div>
     <div class="insight-chip win">
       <span class="insight-icon">&#9989;</span>
       <div>
         <div class="insight-label">Win</div>
-        <div class="insight-text">L1 &amp; L3 at 100% OAR</div>
-        <div class="insight-sub">No declines at those levels in Q1—strong close rate.</div>
+        <div class="insight-text" id="insightWinText">Calculating…</div>
+        <div class="insight-sub" id="insightWinSub"></div>
       </div>
     </div>
   </div>
@@ -735,7 +735,7 @@ window.TEAM_RECRUITERS = [
       <div class="proj-item"><div class="proj-item-val" id="wiMonthlyPace" style="color:var(--coral)">–</div><div class="proj-item-label">Monthly Pace</div></div>
       <div class="proj-item"><div class="proj-item-val" id="wiHiresRemaining" style="color:var(--coral)">–</div><div class="proj-item-label">Est. FTE Remaining</div></div>
       <div class="proj-item"><div class="proj-item-val" id="wiTotal" style="color:var(--amber)">–</div><div class="proj-item-label">Projected Q1 Total</div></div>
-      <div class="proj-item"><div class="proj-item-val" id="wiGap" style="color:var(--red)">–</div><div class="proj-item-label">Gap to Goal (46)</div></div>
+      <div class="proj-item"><div class="proj-item-val" id="wiGap" style="color:var(--red)">–</div><div class="proj-item-label" id="wiGapLabel">Gap to Goal (46)</div></div>
     </div>
   </div>
   <div class="hist-row">
