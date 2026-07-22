@@ -596,7 +596,7 @@ window.TEAM_RECRUITERS = [
   <div class="health-card">
     <div class="gauge-wrap" style="width:100px;height:60px;margin-top:-4px"><canvas id="gaugeChart"></canvas></div>
     <div>
-      <div style="font-size:10px;color:var(--ink-60);text-transform:uppercase;letter-spacing:.7px;font-weight:700">Q1 Health Score</div>
+      <div style="font-size:10px;color:var(--ink-60);text-transform:uppercase;letter-spacing:.7px;font-weight:700;display:flex;align-items:center;gap:5px">Q1 Health Score<button class="health-info-btn" tabindex="0" aria-label="Health score methodology">i<div class="health-tooltip">Weighted score (0–100):<br><strong>50pts</strong> Projected attainment (accepted + pipeline conversion ÷ goal)<br><strong>30pts</strong> OAR vs. 95% benchmark<br><strong>20pts</strong> Pipeline depth (base credit)<br><br>≥80 = On Track &nbsp;·&nbsp; 65–79 = At Risk &nbsp;·&nbsp; 50–64 = Needs Attention &nbsp;·&nbsp; &lt;50 = Critical</div></button></div>
       <div class="gauge-value" id="healthValue" style="color:var(--amber)">–</div>
       <div class="gauge-desc" id="healthLabel">Calculating…</div>
     </div>
