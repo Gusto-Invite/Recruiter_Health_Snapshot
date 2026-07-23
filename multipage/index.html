@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Invite Recruiting · Hiring at a Glance</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Song+Myung&family=Playfair+Display:wght@800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --coral:  #F45D48;
+  --ink:    #222525;
+  --ink-60: #6C6C72;
+  --ink-20: #EAEAEA;
+  --bg:     #F8F5F2;
+  --white:  #FFFFFF;
+  --teal:   #0A8080;
+  --amber:  #D97706;
+  --purple: #6B55D6;
+  --green:  #10B981;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { overflow-x: hidden; }
+body {
+  font-family: 'Nunito', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* ── Page shell ── */
+.page { max-width: 1100px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 48px) 80px; position: relative; z-index: 1; }
+
+/* ── Hero section ── */
+.hero-section {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: clamp(24px, 5vw, 60px);
+  padding: clamp(40px, 6vw, 72px) 0 clamp(36px, 5vw, 64px);
+}
+
+/* Soft blob shapes — fixed to page so they never get clipped */
+.blob {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+.blob-coral {
+  width: 600px; height: 520px;
+  background: radial-gradient(circle, rgba(244,93,72,.18) 0%, rgba(244,93,72,.05) 55%, transparent 100%);
+  top: -140px; right: -160px;
+}
+.blob-teal {
+  width: 480px; height: 420px;
+  background: radial-gradient(circle, rgba(10,128,128,.14) 0%, rgba(10,128,128,.04) 55%, transparent 100%);
+  top: 240px; left: -100px;
+}
+
+/* ── Left hero content ── */
+.hero-left { position: relative; z-index: 1; }
+.hero-eyebrow {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 2px; color: var(--coral); margin-bottom: 20px;
+}
+.hero-eyebrow-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--coral); flex-shrink: 0;
+}
+.hero-headline {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: clamp(38px, 5.2vw, 64px); font-weight: 800; letter-spacing: -1px;
+  line-height: 1.05; color: var(--ink); margin-bottom: 20px;
+}
+.hero-headline .teal { color: var(--teal); }
+.hero-sub {
+  font-size: 15px; color: var(--ink-60); line-height: 1.7;
+  max-width: 440px; font-weight: 600;
+}
+.hero-sub-line { display: block; }
+
+/* ── Right stats ── */
+.hero-stats {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column;
+  min-width: 160px; text-align: right; flex-shrink: 0;
+}
+.hero-stat { padding: 18px 0; }
+.hero-stat + .hero-stat { border-top: 1px solid var(--ink-20); }
+.hero-stat-val {
+  font-size: clamp(36px, 4vw, 52px); font-weight: 900; letter-spacing: -2px;
+  line-height: 1; margin-bottom: 4px;
+}
+.hero-stat-lbl {
+  font-size: 10px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 1.8px; color: var(--ink-60);
+}
+
+/* ── Divider ── */
+.section-divider {
+  height: 0; margin-bottom: 40px;
+}
+
+/* ── Team grid ── */
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+@keyframes cardGlow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--tca, rgba(244,93,72,0)); }
+  50%       { box-shadow: 0 0 18px 5px var(--tca, rgba(244,93,72,.22)); }
+}
+.team-card {
+  background: color-mix(in srgb, var(--tc, var(--coral)) 7%, transparent);
+  border: 1.5px solid var(--tc, var(--coral));
+  border-radius: 16px;
+  padding: 18px 16px 16px;
+  text-decoration: none;
+  color: var(--ink);
+  display: flex; flex-direction: column;
+  animation: cardGlow 3.5s ease-in-out infinite;
+  cursor: pointer;
+}
+.team-card:nth-child(2) { animation-delay: .7s; }
+.team-card:nth-child(3) { animation-delay: 1.4s; }
+.team-card:nth-child(4) { animation-delay: 2.1s; }
+.team-card:nth-child(5) { animation-delay: 2.8s; }
+.team-card:hover {
+  animation: none;
+  transform: translateY(-3px);
+  box-shadow: 0 0 28px 8px var(--tca, rgba(244,93,72,.32));
+  border-width: 2px;
+  transition: transform .18s, box-shadow .18s, border-width .18s;
+}
+.team-card-top {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.team-arrow {
+  font-size: 13px; color: var(--tc, var(--coral)); font-weight: 700;
+  opacity: .5; transition: opacity .15s, transform .15s;
+}
+.team-card:hover .team-arrow { opacity: 1; transform: translateX(3px); }
+.team-name {
+  font-size: 9px; font-weight: 800; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--tc, var(--coral));
+  margin-bottom: 6px;
+}
+.team-oar {
+  font-size: 32px; font-weight: 900; letter-spacing: -1.5px;
+  line-height: 1; color: var(--ink);
+  margin-bottom: 4px;
+}
+.team-oar-lbl {
+  font-size: 10px; font-weight: 700; color: var(--ink-60);
+  text-transform: uppercase; letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+.team-bar-wrap {
+  height: 2px; background: var(--ink-20); border-radius: 1px;
+  overflow: hidden; margin-bottom: 8px;
+}
+.team-bar { height: 100%; border-radius: 1px; background: var(--tc, var(--coral)); transition: width .4s; }
+.team-reqs {
+  font-size: 10px; color: var(--ink-60); font-weight: 600; margin-top: auto;
+}
+
+/* ── Card throw overlay ── */
+#card-throw-ov {
+  display: none;
+  position: fixed;
+  z-index: 9999;
+  overflow: hidden;
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* ── Responsive ── */
+@media (max-width: 860px) {
+  .hero-section { grid-template-columns: 1fr; gap: 32px; }
+  .hero-stats { text-align: left; flex-direction: row; gap: 0; flex-wrap: wrap; }
+  .hero-stat { flex: 1; min-width: 120px; padding: 16px 20px 16px 0; }
+  .hero-stat + .hero-stat {
+    border-top: none;
+    border-left: 1px solid var(--ink-20);
+    padding-left: 20px;
+  }
+  .team-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 560px) {
+  .team-grid { grid-template-columns: 1fr 1fr; }
+  .hero-stats { flex-direction: column; }
+  .hero-stat { padding: 12px 0; }
+  .hero-stat + .hero-stat { border-left: none; border-top: 1px solid var(--ink-20); padding-left: 0; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <!-- Hero -->
+  <div class="hero-section">
+    <!-- Background blobs -->
+    <div class="blob blob-coral"></div>
+    <div class="blob blob-teal"></div>
+
+    <!-- Left -->
+    <div class="hero-left">
+      <div class="hero-eyebrow">
+        <div class="hero-eyebrow-dot"></div>
+        <span>Invite &nbsp;·&nbsp; Q1 FY27</span>
+      </div>
+      <div class="hero-headline">
+        Hiring at<br><span class="teal">a Glance.</span>
+      </div>
+      <div class="hero-sub">
+        <span class="hero-sub-line">May 1 – Jul 31, 2026 &nbsp;·&nbsp; <span id="daysRemaining">–</span> days remaining</span>
+        <span class="hero-sub-line">Select a team below to open its dashboard</span>
+      </div>
+    </div>
+
+    <!-- Right stats -->
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="hero-stat-val" id="statAccepted" style="color:var(--teal)">–</div>
+        <div class="hero-stat-lbl">Accepted</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-val" id="statOAR" style="color:var(--coral)">–</div>
+        <div class="hero-stat-lbl">Team OAR</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-val" id="statTTH" style="color:var(--amber)">–</div>
+        <div class="hero-stat-lbl">Time to Hire</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Divider -->
+  <div class="section-divider"></div>
+
+  <!-- Team cards -->
+  <div class="team-grid">
+
+    <a href="engineering/" class="team-card" style="--tc:#F45D48;--tca:rgba(244,93,72,.28)">
+      <div class="team-card-top">
+        <div class="team-name">Engineering</div>
+        <div class="team-arrow">→</div>
+      </div>
+      <div class="team-oar" id="oarEngineering">–</div>
+      <div class="team-oar-lbl">OAR</div>
+      <div class="team-bar-wrap"><div class="team-bar" id="barEngineering" style="width:0%"></div></div>
+      <div class="team-reqs" id="reqsEngineering">– open reqs</div>
+    </a>
+
+    <a href="gtm/" class="team-card" style="--tc:#0A8080;--tca:rgba(10,128,128,.28)">
+      <div class="team-card-top">
+        <div class="team-name">GTM</div>
+        <div class="team-arrow">→</div>
+      </div>
+      <div class="team-oar" id="oarGTM">–</div>
+      <div class="team-oar-lbl">OAR</div>
+      <div class="team-bar-wrap"><div class="team-bar" id="barGTM" style="width:0%"></div></div>
+      <div class="team-reqs" id="reqsGTM">– open reqs</div>
+    </a>
+
+    <a href="cx/" class="team-card" style="--tc:#6B55D6;--tca:rgba(107,85,214,.28)">
+      <div class="team-card-top">
+        <div class="team-name">CX</div>
+        <div class="team-arrow">→</div>
+      </div>
+      <div class="team-oar" id="oarCX">–</div>
+      <div class="team-oar-lbl">OAR</div>
+      <div class="team-bar-wrap"><div class="team-bar" id="barCX" style="width:0%"></div></div>
+      <div class="team-reqs" id="reqsCX">– open reqs</div>
+    </a>
+
+    <a href="spectech/" class="team-card" style="--tc:#D97706;--tca:rgba(217,119,6,.28)">
+      <div class="team-card-top">
+        <div class="team-name">SpecTech</div>
+        <div class="team-arrow">→</div>
+      </div>
+      <div class="team-oar" id="oarSpecTech">–</div>
+      <div class="team-oar-lbl">OAR</div>
+      <div class="team-bar-wrap"><div class="team-bar" id="barSpecTech" style="width:0%"></div></div>
+      <div class="team-reqs" id="reqsSpecTech">– open reqs</div>
+    </a>
+
+    <a href="foundation/" class="team-card" style="--tc:#10B981;--tca:rgba(16,185,129,.28)">
+      <div class="team-card-top">
+        <div class="team-name">Foundation</div>
+        <div class="team-arrow">→</div>
+      </div>
+      <div class="team-oar" id="oarFoundation">–</div>
+      <div class="team-oar-lbl">OAR</div>
+      <div class="team-bar-wrap"><div class="team-bar" id="barFoundation" style="width:0%"></div></div>
+      <div class="team-reqs" id="reqsFoundation">– open reqs</div>
+    </a>
+
+  </div>
+</div><!-- end .page -->
+
+<script>
+// ── Date math ──────────────────────────────────────────────────────
+const today         = new Date();
+const qEnd          = new Date('2026-07-31');
+const daysRemaining = Math.max(0, Math.floor((qEnd - today) / 86400000));
+document.getElementById('daysRemaining').textContent = daysRemaining;
+
+// ── Team recruiter rosters ──────────────────────────────────────────
+// Mirrors window.TEAM_RECRUITERS in each team's own page, plus each team's
+// lead (leads sometimes carry their own reqs — e.g. Kebone Moloko/Teresa
+// Waggoner/Jaime Tavarez all show up as Primary Recruiter on some rows).
+// Used to attribute rows in the org-wide 'Offers' and 'Open Reqs' sheets to
+// a team purely by who's assigned — same rule for both sheets. Goal is null
+// for teams whose Q1 hiring goal isn't known yet (only Engineering's is set).
+const TEAM_ROSTER = {
+  Engineering: { goal: 46,   lead: "Jaime Tavarez",     recruiters: ["Angeline Lo","Ellison DeCastro","Jacob Epstein","Jeff Dunn","Jeff Myers","Kevin Gadd","Khetsun Tenzin","Mike Galligan","Nicholas Watson"] },
+  GTM:         { goal: null, lead: "Lisa Pham",         recruiters: ["Gina Panacci","John Thomas","Grace Stoughton","William Brown"] },
+  CX:          { goal: null, lead: "Michelle Cordray",  recruiters: ["Molly Menotti","Hannah Muhonen","Kristin Dixon","Kelly Reyes","Addison Koback"] },
+  SpecTech:    { goal: null, lead: "Kebone Moloko",     recruiters: ["Jeremy Murdy","Janielle Rodriguez","Bri Majors","Abby Wagner","Alvin Ye","Ashleigh Huffman","Mallory Montanez"] },
+  Foundation:  { goal: null, lead: "Teresa Waggoner",   recruiters: ["Nico Talaugon","Dylan Cook","Helen Oh","Paul West","Staci Birkel","Chelsea Roussey","Safi Hasseeb","Merriam Yunus","Shayna Siemer","Natasha Ovsyannikova","Isabel Macias"] }
+};
+const RECRUITER_TO_TEAM = {};
+Object.entries(TEAM_ROSTER).forEach(([team, cfg]) => [...cfg.recruiters, cfg.lead].forEach(name => RECRUITER_TO_TEAM[name] = team));
+
+function setOAR(team, oarPct) {
+  const oarEl = document.getElementById('oar' + team);
+  const barEl = document.getElementById('bar' + team);
+  if (oarEl) oarEl.textContent = oarPct != null ? oarPct + '%' : '–';
+  if (barEl) barEl.style.width = (oarPct || 0) + '%';
+}
+function setReqs(team, text) {
+  const el = document.getElementById('reqs' + team);
+  if (el) el.textContent = text;
+}
+
+// Initial placeholder render while live data loads
+Object.keys(TEAM_ROSTER).forEach(team => {
+  setOAR(team, null);
+  setReqs(team, '– open reqs');
+});
+
+// ── Sheet fetch helpers (mirrors shared.js's dual-mode fetch) ───────
+const TOOL            = 'mcp__c61042c2-2fb3-4e2e-888c-dce52a6a8c86__fetch';
+const PIPELINE_SHEET  = '1jFTGmMfMgsnkCbPPhgwZDPtbNM0-wIM1Ee-FLvTOZVU';
+const APPS_SCRIPT_URL = 'https://script.google.com/a/macros/gusto.com/s/AKfycbw1GDnQXS_r7ZG2zGyU8w7jjqi6GUzqfHOCzMirkb4jnbOeKQd7GUL2MizKI-soLGA/exec';
+
+function extractContent(r) {
+  if (!r || r.isError) return '';
+  if (r.structuredContent?.content) return r.structuredContent.content;
+  const arr = Array.isArray(r.content) ? r.content : [];
+  const blk = arr.find(b => b?.type === 'text');
+  if (blk?.text) { try { return JSON.parse(blk.text)?.content || blk.text; } catch { return blk.text; } }
+  return '';
+}
+function lines(txt) {
+  return txt.split('\n').map(l => l.split('\t').map(c => c.trim())).filter(r => r.some(c => c.length));
+}
+function arrayToTSV(rows) {
+  return rows.map(row => row.map(cell => {
+    if (cell == null) return '';
+    if (cell instanceof Date) return `${cell.getMonth()+1}/${cell.getDate()}/${cell.getFullYear()}`;
+    if (typeof cell === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(cell)) {
+      const d = new Date(cell);
+      if (!isNaN(d.getTime())) return `${d.getUTCMonth()+1}/${d.getUTCDate()}/${d.getUTCFullYear()}`;
+    }
+    return String(cell);
+  }).join('\t')).join('\n');
+}
+function fetchSheetFromAppsScript(sheetName) {
+  return new Promise((resolve, reject) => {
+    const cbName = '_lscb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    const script = document.createElement('script');
+    const timer = setTimeout(() => {
+      delete window[cbName];
+      try { document.head.removeChild(script); } catch(e) {}
+      reject(new Error('Apps Script timed out'));
+    }, 20000);
+    window[cbName] = (data) => {
+      clearTimeout(timer);
+      delete window[cbName];
+      try { document.head.removeChild(script); } catch(e) {}
+      resolve(data[sheetName] || []);
+    };
+    script.onerror = () => { clearTimeout(timer); delete window[cbName]; reject(new Error('Apps Script failed')); };
+    script.src = `${APPS_SCRIPT_URL}?callback=${cbName}&sheet=${encodeURIComponent(sheetName)}`;
+    document.head.appendChild(script);
+  });
+}
+async function fetchSheetRows(sheetName) {
+  if (window.cowork && window.cowork.callMcpTool) {
+    const res = await window.cowork.callMcpTool(TOOL, { spreadsheet_id: PIPELINE_SHEET, range: `${sheetName}!A1:Z1000`, include_hidden_rows: false });
+    return extractContent(res);
+  }
+  const rows = await fetchSheetFromAppsScript(sheetName);
+  if (!rows || rows.length === 0) throw new Error(`Sheet "${sheetName}" returned no data`);
+  return arrayToTSV(rows);
+}
+
+// ── Live fetch: real per-team accepted/extended/OAR from 'Offers' ──
+// (Previous version queried nonexistent sheet names — 'Offers [PLEASE DO NOT
+// TOUCH]' / 'Open HC [PLEASE DO NOT TOUCH]' — which silently failed and left
+// every team but Engineering on hardcoded placeholders. Real sheet names are
+// 'Offers' and 'Open Reqs'.)
+async function fetchLive() {
+  try {
+    const txt = await fetchSheetRows('Offers');
+    if (!txt || txt.length < 100) return;
+    const rows = lines(txt);
+
+    let headerIdx = -1, statCol = -1, resCol = -1, jobCol = -1, recCol = -1, startCol = -1;
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].some(c => /^status/i.test(c)) && rows[i].includes('Resolved')) {
+        headerIdx = i;
+        const h = rows[i];
+        statCol  = h.findIndex(c => /^status/i.test(c));
+        resCol   = h.indexOf('Resolved');
+        jobCol   = h.findIndex(c => /^job/i.test(c));
+        recCol   = h.indexOf('Recruiter');
+        startCol = h.findIndex(c => /^start date/i.test(c));
+        break;
+      }
+    }
+    if (headerIdx < 0) return;
+
+    const isNonFTE = t => /\bintern\b/.test(t) || /apprentice/.test(t) || /temporary/.test(t);
+    const teamStats = {};
+    Object.keys(TEAM_ROSTER).forEach(t => teamStats[t] = { accepted: 0, extended: 0, tthSum: 0, tthN: 0 });
+    let overallAccepted = 0, overallExtended = 0, overallTthSum = 0, overallTthN = 0;
+
+    for (const row of rows.slice(headerIdx + 1)) {
+      const status = (row[statCol] || '').trim();
+      if (!status) continue;
+      const jobStr = (row[jobCol] || '').trim();
+      if (isNonFTE(jobStr.toLowerCase())) continue;
+
+      const rd = row[resCol];
+      let mo = 0, yr = 0;
+      if (rd) {
+        const s = String(rd);
+        let m;
+        if ((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/))) { mo = +m[1]; yr = +m[3]; }
+        else if ((m = s.match(/^(\d{4})-(\d{2})-(\d{2})/))) { mo = +m[2]; yr = +m[1]; }
+      }
+      if (!(yr === 2026 && mo >= 5 && mo <= 7)) continue;
+
+      const recruiter = recCol >= 0 ? (row[recCol] || '').trim() : '';
+      const team = RECRUITER_TO_TEAM[recruiter];
+      if (!team) continue; // recruiter not on any known roster — skip
+
+      if (status === 'Accepted') {
+        teamStats[team].accepted++; teamStats[team].extended++;
+        overallAccepted++; overallExtended++;
+        const startDate = startCol >= 0 ? new Date(row[startCol]) : null;
+        const resDate = new Date(rd);
+        if (startDate && !isNaN(startDate) && !isNaN(resDate)) {
+          const diff = Math.floor((startDate - resDate) / 86400000);
+          if (diff > 0 && diff < 200) { teamStats[team].tthSum += diff; teamStats[team].tthN++; overallTthSum += diff; overallTthN++; }
+        }
+      } else if (status === 'Rejected' || status === 'Declined') {
+        teamStats[team].extended++; overallExtended++;
+      }
+      // else: Deprecated/Sent/other non-resolved statuses — skip
+    }
+
+    Object.entries(teamStats).forEach(([team, s]) => {
+      if (s.extended > 0) setOAR(team, Math.round(s.accepted / s.extended * 100));
+    });
+
+    if (overallExtended > 0) {
+      document.getElementById('statAccepted').textContent = overallAccepted;
+      document.getElementById('statOAR').textContent      = Math.round(overallAccepted / overallExtended * 100) + '%';
+      document.getElementById('statTTH').textContent      = overallTthN > 0 ? Math.round(overallTthSum / overallTthN) + 'd' : '–';
+    }
+  } catch(e) { console.warn('[Landing] Offers fetch failed:', e); }
+
+  // Open reqs count — same rule as Offers: whoever is assigned as Primary
+  // Recruiter (or the team lead) determines which team a req counts toward.
+  // Note: this report's own filter text scopes it to Engineering-adjacent
+  // cost centers (Eng/Data/Security/IT/Product/Design), so GTM and CX will
+  // legitimately show 0 here even though the matching logic covers all 5
+  // teams — their reqs simply aren't included in this particular report.
+  try {
+    const txt2 = await fetchSheetRows('Open Reqs');
+    if (txt2 && txt2.length > 50) {
+      const rows2 = lines(txt2);
+      let hIdx = -1, statCol2 = -1, reqCol2 = -1, recCol2 = -1;
+      for (let i = 0; i < rows2.length; i++) {
+        if (rows2[i][0] === 'Job Name') {
+          hIdx = i;
+          const h = rows2[i];
+          statCol2 = h.indexOf('Status (Job)');
+          reqCol2  = h.indexOf('Requisition ID');
+          recCol2  = h.indexOf('Primary Recruiter');
+          break;
+        }
+      }
+      if (hIdx >= 0) {
+        const reqCounts = {};
+        Object.keys(TEAM_ROSTER).forEach(t => reqCounts[t] = 0);
+        rows2.slice(hIdx + 1).forEach(r => {
+          if (r[statCol2] !== 'Open' || (r[reqCol2] || '').startsWith('E')) return;
+          const team = RECRUITER_TO_TEAM[(r[recCol2] || '').trim()];
+          if (team) reqCounts[team]++;
+        });
+        Object.entries(reqCounts).forEach(([team, count]) => setReqs(team, count + ' open reqs'));
+      }
+    }
+  } catch(e) { console.warn('[Landing] Open Reqs fetch failed:', e); }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', fetchLive);
+} else {
+  fetchLive();
+}
+
+// ── Card throw animation ──────────────────────────────────────────
+(function () {
+  var busy = false;
+
+  function launchCard(card, url) {
+    if (busy) return;
+    busy = true;
+
+    var ov   = document.getElementById('card-throw-ov');
+    var face = document.getElementById('card-throw-face');
+    var tc   = card.style.getPropertyValue('--tc').trim();
+
+    // Clone card contents into overlay face
+    face.innerHTML = card.innerHTML;
+    face.style.cssText = [
+      'position:absolute', 'inset:0', 'display:flex', 'flex-direction:column',
+      'padding:18px 16px 16px', 'border-radius:inherit',
+      'background:color-mix(in srgb,' + tc + ' 7%,#F8F5F2)',
+      'border:1.5px solid ' + tc
+    ].join(';');
+    face.style.setProperty('--tc', tc);
+
+    // Measure card position in viewport
+    var cr   = card.getBoundingClientRect();
+    var tx   = window.innerWidth  / 2 - (cr.left + cr.width  / 2);
+    var ty   = window.innerHeight / 2 - (cr.top  + cr.height / 2);
+    var P    = 'perspective(1100px)';
+    var base = P + ' translate(' + tx + 'px,' + ty + 'px)';
+
+    ov.style.cssText = [
+      'display:block', 'position:fixed',
+      'left:'   + Math.round(cr.left)   + 'px',
+      'top:'    + Math.round(cr.top)    + 'px',
+      'width:'  + Math.round(cr.width)  + 'px',
+      'height:' + Math.round(cr.height) + 'px',
+      'border-radius:16px', 'overflow:hidden',
+      'z-index:9999', 'pointer-events:none',
+      'will-change:transform', 'transition:none',
+      'transform:' + base + ' scale(1) rotateY(0deg) rotateZ(0deg)'
+    ].join(';');
+
+    card.style.visibility = 'hidden';
+
+    // Phase 1 — Wind-up (0 → 380 ms)
+    requestAnimationFrame(function () { requestAnimationFrame(function () {
+      ov.style.transition = 'transform 380ms cubic-bezier(0.0,0.0,0.4,1.0)';
+      ov.style.transform  = base + ' scale(1.8) rotateY(-22deg) rotateZ(-4deg)';
+    }); });
+
+    // Phase 2 — Throw to edge-on (380 → 880 ms)
+    setTimeout(function () {
+      ov.style.transition = 'transform 500ms cubic-bezier(0.55,0,1,1)';
+      ov.style.transform  = base + ' scale(3.4) rotateY(90deg) rotateZ(1deg)';
+    }, 380);
+
+    // Navigate at edge-on — card is invisible, seamless handoff to team page
+    setTimeout(function () {
+      window.location.href = url;
+    }, 880);
+  }
+
+  // Wire all team cards
+  document.querySelectorAll('.team-card').forEach(function (card) {
+    card.addEventListener('click', function (e) {
+      e.preventDefault();
+      launchCard(this, this.getAttribute('href'));
+    });
+  });
+}());
+</script>
+<!-- Card throw animation overlay -->
+<div id="card-throw-ov">
+  <div id="card-throw-face"></div>
+</div>
+
+</body>
+</html>

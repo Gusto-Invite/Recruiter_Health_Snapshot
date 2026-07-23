@@ -11,7 +11,11 @@ let currentScenario = 'base';
 let projectionChart = null, gaugeChart = null, histChart = null, declineCompChart = null;
 
 const FALLBACK = {
-  q1Goal: _TC.goal || 46,
+  // _TC.goal is explicitly null for teams whose Q1 hiring goal isn't known yet
+  // (GTM, CX, SpecTech, Foundation) — HAS_GOAL below gates every goal-relative
+  // calculation/display so those teams show "no goal set" instead of a
+  // fabricated number, rather than falling back to Engineering's 46.
+  q1Goal: _TC.goal === null ? null : (_TC.goal || 46),
   q1Predicted: 27,           // FTE offers accepted in Q1 (by resolved/acceptance date, excl. interns & apprentices)
   hiresQ1ToDate: 29,         // FTE starts through Jun 9 (excl. interns/apprentices, used for pace projection)
   acceptedTotal: 27,         // offers accepted in Q1 (resolved date in May–Jul 2026, excl. interns & apprentices)
@@ -35,6 +39,12 @@ const FALLBACK = {
     openJobs: [89,76,73,69,51,47,55,60,65]
   }
 };
+
+// True only for teams with a known Q1 hiring goal (currently just Engineering).
+// Every goal-relative calculation/display below checks this instead of
+// assuming a number, so GTM/CX/SpecTech/Foundation show honest "no goal set"
+// text rather than NaN/Infinity or a fabricated percentage.
+const HAS_GOAL = FALLBACK.q1Goal != null;
 
 // ── Date math ──────────────────────────────────────────────────────
 const today      = new Date();
@@ -117,6 +127,10 @@ function computeProjection(oar, rec, ppr) {
   const baseMonthly = rec * ppr * (oar / FALLBACK.baseOAR);
   const remaining   = Math.round(baseMonthly * monthsLeft);
   const total       = FALLBACK.hiresQ1ToDate + remaining;
+  // gap/paceNeeded are meaningless without a known goal — leave them null so
+  // every caller has to explicitly handle the no-goal case instead of
+  // silently computing NaN/Infinity from FALLBACK.q1Goal - null.
+  if (!HAS_GOAL) return { baseMonthly, remaining, total, gap: null, paceNeeded: null };
   const gap         = Math.max(0, FALLBACK.q1Goal - total);
   const paceNeeded  = monthsLeft > 0 ? (FALLBACK.q1Goal - FALLBACK.hiresQ1ToDate) / monthsLeft : 0;
   return { baseMonthly, remaining, total, gap, paceNeeded };
@@ -153,6 +167,15 @@ function currentIRCount() {
 
 function computeHealth(oar, rec, ppr) {
   const proj = computeProjection(oar, rec, ppr);
+  // Without a goal there's no "pace vs. goal" to score, so that component's
+  // 50 points get redistributed across OAR and pipeline depth instead of
+  // just silently dropping to a max score of 50.
+  if (!HAS_GOAL) {
+    return Math.round(
+      Math.min(60, 60 * (oar / 0.95)) +
+      Math.min(40, 40 * Math.min(1, currentOfferCount() / 8))
+    );
+  }
   return Math.round(
     Math.min(50, 50 * (proj.baseMonthly / proj.paceNeeded)) +
     Math.min(30, 30 * (oar / 0.95)) +
@@ -316,7 +339,8 @@ function renderHistChart(projected, liveHist) {
         { label:'Accepted',          data:[...histAccepted, null],     backgroundColor:'rgba(244,93,72,0.6)',   borderColor:'#F45D48',              borderWidth:2, borderRadius:6 },
         { label:'Extended',          data:[...histExtended, null],     backgroundColor:'rgba(244,93,72,0.15)',  borderColor:'rgba(244,93,72,0.4)',   borderWidth:1, borderRadius:6 },
         { label:'Projected Accepted',data:[...nullPad, projected],     backgroundColor:'rgba(245,166,35,0.4)', borderColor:'#F5A623',              borderWidth:2, borderRadius:6 },
-        { label:`Goal (${FALLBACK.q1Goal})`, data:[...nullPad, FALLBACK.q1Goal], type:'line', borderColor:'rgba(0,0,0,0.2)', borderDash:[6,4], borderWidth:2, pointRadius:0, fill:false }
+        // No goal line for teams without a known Q1 goal yet.
+        ...(HAS_GOAL ? [{ label:`Goal (${FALLBACK.q1Goal})`, data:[...nullPad, FALLBACK.q1Goal], type:'line', borderColor:'rgba(0,0,0,0.2)', borderDash:[6,4], borderWidth:2, pointRadius:0, fill:false }] : [])
       ]
     },
     options: {
@@ -543,7 +567,14 @@ function computeRisks(proj) {
   const latestIR = currentIRCount();
   const pending = FALLBACK.acceptedPending || 0;
   return [
-    {
+    !HAS_GOAL ? {
+      // No Q1 goal set yet for this team — an informational card instead of
+      // a fabricated gap-to-goal risk (which would need FALLBACK.q1Goal).
+      level: 'risk-low',
+      icon: 'ℹ️',
+      title: `${FALLBACK.acceptedTotal} FTE Accepted This Quarter`,
+      desc: `No Q1 hiring goal has been set yet for ${_TC.name} — tracking accepted offers and pace only.`
+    } : {
       level: gap >= 15 ? 'risk-high' : gap >= 8 ? 'risk-mid' : 'risk-low',
       icon: gap >= 15 ? '🔴' : gap >= 8 ? '🟡' : '🟢',
       title: gap > 0 ? `${gap}-Hire FTE Gap to Goal` : 'FTE Goal Within Reach',
@@ -607,11 +638,13 @@ function renderInsightStrip(proj) {
     } else if (stats.oarPct != null && stats.oarPct >= 90) {
       winTextEl.textContent = `${_TC.name} OAR at ${stats.oarPct}%`;
       if (winSubEl) winSubEl.textContent = `${stats.totalAcc}/${stats.totalExt} offers accepted this quarter — strong close rate.`;
-    } else if (proj.gap <= 0) {
+    } else if (HAS_GOAL && proj.gap <= 0) {
       winTextEl.textContent = 'On pace to hit Q1 goal';
       if (winSubEl) winSubEl.textContent = `Projected to meet or exceed the ${FALLBACK.q1Goal}-hire goal at current pace.`;
     } else {
-      winTextEl.textContent = `${FALLBACK.acceptedTotal}/${FALLBACK.q1Goal} FTE hires confirmed`;
+      winTextEl.textContent = HAS_GOAL
+        ? `${FALLBACK.acceptedTotal}/${FALLBACK.q1Goal} FTE hires confirmed`
+        : `${FALLBACK.acceptedTotal} FTE hires confirmed`;
       if (winSubEl) winSubEl.textContent = 'No stand-out win flagged yet this quarter — check back as more offers resolve.';
     }
   }
@@ -627,32 +660,51 @@ function updateKPIs(proj) {
   // ── Team status card header ──────────────────────────────────────
   document.getElementById('teamDaysHeader').textContent = daysRemaining;
   document.getElementById('teamPctHeader').textContent = pctThrough;
-  const stillLeft0 = Math.max(0, goal - accepted);
-  document.getElementById('teamGoalSummary').textContent =
-    stillLeft0 === 0 ? `✓ Goal covered by accepted offers` : `${accepted} accepted · ${stillLeft0} more needed by Jul 31`;
+  if (HAS_GOAL) {
+    const stillLeft0 = Math.max(0, goal - accepted);
+    document.getElementById('teamGoalSummary').textContent =
+      stillLeft0 === 0 ? `✓ Goal covered by accepted offers` : `${accepted} accepted · ${stillLeft0} more needed by Jul 31`;
+  } else {
+    document.getElementById('teamGoalSummary').textContent = `${accepted} accepted this quarter · no Q1 goal set yet`;
+  }
   const remaining0 = proj.total - started;
   document.getElementById('teamProjBreakdown').textContent = `${started} accepted + ~${Math.max(0,remaining0)} projected = ${proj.total}`;
 
   // Goal card — progress bar
-  const confirmedPct = Math.round(accepted / goal * 100);
-  const barColor = confirmedPct >= 90 ? '#00B094' : confirmedPct >= 60 ? '#F5A623' : '#F45D48';
-  document.getElementById('goalBar').style.width = Math.min(100, confirmedPct) + '%';
-  document.getElementById('goalBar').style.background = barColor;
-  document.getElementById('goalPct').textContent = confirmedPct + '% of goal accepted in Q1';
-  document.getElementById('goalPct').style.color = barColor;
-  const stillNeeded = Math.max(0, goal - accepted);
-  document.getElementById('goalNote').textContent = `${accepted} accepted in Q1 · ${stillNeeded} more needed by Jul 31`;
+  if (HAS_GOAL) {
+    const confirmedPct = Math.round(accepted / goal * 100);
+    const barColor = confirmedPct >= 90 ? '#00B094' : confirmedPct >= 60 ? '#F5A623' : '#F45D48';
+    document.getElementById('goalBar').style.width = Math.min(100, confirmedPct) + '%';
+    document.getElementById('goalBar').style.background = barColor;
+    document.getElementById('goalPct').textContent = confirmedPct + '% of goal accepted in Q1';
+    document.getElementById('goalPct').style.color = barColor;
+    const stillNeeded = Math.max(0, goal - accepted);
+    document.getElementById('goalNote').textContent = `${accepted} accepted in Q1 · ${stillNeeded} more needed by Jul 31`;
+  } else {
+    document.getElementById('goalBar').style.width = '0%';
+    document.getElementById('goalBar').style.background = '#B8B0A8';
+    document.getElementById('goalPct').textContent = 'No Q1 goal set yet';
+    document.getElementById('goalPct').style.color = '#8A8078';
+    document.getElementById('goalNote').textContent = `${accepted} accepted in Q1 — goal not yet assigned for ${_TC.name}`;
+  }
 
   // Projected card
-  const projPct = Math.round(proj.total / goal * 100);
-  const projColor = proj.total >= goal ? '#00B094' : proj.total >= Math.round(goal * 0.9) ? '#F5A623' : '#F45D48';
-  document.getElementById('kpiProjected').textContent = proj.total;
-  document.getElementById('kpiProjected').style.color = projColor;
-  document.getElementById('kpiGapLabel').innerHTML = proj.gap > 0
-    ? `<span class="kpi-badge badge-red">−${proj.gap} FTE vs goal</span>`
-    : `<span class="kpi-badge badge-green">On target</span>`;
-  document.getElementById('kpiProjectedNote').textContent =
-    `${projPct}% to goal · ${proj.gap > 0 ? `${proj.gap} hire${proj.gap > 1 ? 's' : ''} short at current pace` : 'Goal within reach at base pace'}`;
+  if (HAS_GOAL) {
+    const projPct = Math.round(proj.total / goal * 100);
+    const projColor = proj.total >= goal ? '#00B094' : proj.total >= Math.round(goal * 0.9) ? '#F5A623' : '#F45D48';
+    document.getElementById('kpiProjected').textContent = proj.total;
+    document.getElementById('kpiProjected').style.color = projColor;
+    document.getElementById('kpiGapLabel').innerHTML = proj.gap > 0
+      ? `<span class="kpi-badge badge-red">−${proj.gap} FTE vs goal</span>`
+      : `<span class="kpi-badge badge-green">On target</span>`;
+    document.getElementById('kpiProjectedNote').textContent =
+      `${projPct}% to goal · ${proj.gap > 0 ? `${proj.gap} hire${proj.gap > 1 ? 's' : ''} short at current pace` : 'Goal within reach at base pace'}`;
+  } else {
+    document.getElementById('kpiProjected').textContent = proj.total;
+    document.getElementById('kpiProjected').style.color = '#222525';
+    document.getElementById('kpiGapLabel').innerHTML = `<span class="kpi-badge">No goal set</span>`;
+    document.getElementById('kpiProjectedNote').textContent = `Projected FTE hires this quarter at current pace — no Q1 goal set yet for ${_TC.name}`;
+  }
 
   // Accepted pace insight (dynamic — only show once live data is available)
   const watchAcc = document.getElementById('watchAccepted');
@@ -674,21 +726,25 @@ function updateKPIs(proj) {
     }
   }
 
-  // Pace card (may be absent from team view)
-  const paceRatio = Math.round(proj.baseMonthly / proj.paceNeeded * 100);
+  // Pace card (may be absent from team view; paceNeeded is null without a goal)
   const kpiPaceEl = document.getElementById('kpiPace');
-  if (kpiPaceEl) {
+  if (kpiPaceEl && HAS_GOAL) {
+    const paceRatio = Math.round(proj.baseMonthly / proj.paceNeeded * 100);
     kpiPaceEl.textContent = proj.baseMonthly.toFixed(1) + '/mo';
     kpiPaceEl.style.color = proj.baseMonthly >= proj.paceNeeded ? '#00B094' : proj.baseMonthly >= proj.paceNeeded * 0.8 ? '#F5A623' : '#F45D48';
     const kpiPaceNeeded = document.getElementById('kpiPaceNeeded');
     if (kpiPaceNeeded) kpiPaceNeeded.textContent = `Need ${proj.paceNeeded.toFixed(1)}/mo to hit goal`;
     const kpiPaceNote = document.getElementById('kpiPaceNote');
     if (kpiPaceNote) kpiPaceNote.textContent = `${paceRatio}% of needed pace · 9 recruiters × 1.44 PPR`;
+  } else if (kpiPaceEl) {
+    kpiPaceEl.textContent = proj.baseMonthly.toFixed(1) + '/mo';
+    const kpiPaceNeeded = document.getElementById('kpiPaceNeeded');
+    if (kpiPaceNeeded) kpiPaceNeeded.textContent = 'No Q1 goal set yet';
   }
 
-  // Days card (may be absent from team view)
+  // Days card (may be absent from team view; goal-based "remaining needed" only applies with a goal)
   const hiresWithPipeline = started + pending;
-  const remainingAfterPipeline = Math.max(0, goal - hiresWithPipeline);
+  const remainingAfterPipeline = HAS_GOAL ? Math.max(0, goal - hiresWithPipeline) : null;
   const kpiDaysEl = document.getElementById('kpiDays');
   if (kpiDaysEl) {
     kpiDaysEl.textContent = daysRemaining;
@@ -710,8 +766,9 @@ function updateKPIs(proj) {
   }
 
   const kpiDaysNote = document.getElementById('kpiDaysNote');
-  if (kpiDaysNote) kpiDaysNote.textContent =
-    `${hiresWithPipeline} confirmed · ${remainingAfterPipeline} more needed in ${daysRemaining}d`;
+  if (kpiDaysNote) kpiDaysNote.textContent = HAS_GOAL
+    ? `${hiresWithPipeline} confirmed · ${remainingAfterPipeline} more needed in ${daysRemaining}d`
+    : `${hiresWithPipeline} confirmed · no Q1 goal set yet`;
 
   // ── Dynamic analysis notes ────────────────────────────────────────
   // Guarded like watchPace/watchDays below — #watchGoal/#watchProjected don't
@@ -720,7 +777,7 @@ function updateKPIs(proj) {
   // function every time live data loaded, before it could reach the OAR-by-
   // level / decline-reasons / accepted-offers-count updates further down.
   const goalW = document.getElementById('watchGoal');
-  if (goalW) {
+  if (goalW && HAS_GOAL) {
     const stillLeft = Math.max(0, goal - accepted);
     if (stillLeft === 0) {
       goalW.className = 'analysis-note ok';
@@ -735,7 +792,7 @@ function updateKPIs(proj) {
   }
 
   const projW = document.getElementById('watchProjected');
-  if (projW) {
+  if (projW && HAS_GOAL) {
     if (proj.gap <= 0) {
       projW.className = 'analysis-note ok';
       projW.innerHTML = '<strong>✓ On pace:</strong> Base projection meets or exceeds goal at current recruiter count and OAR.';
@@ -749,7 +806,7 @@ function updateKPIs(proj) {
   }
 
   const paceW = document.getElementById('watchPace');
-  if (paceW) {
+  if (paceW && HAS_GOAL) {
     const paceRatio2 = proj.baseMonthly / proj.paceNeeded;
     if (paceRatio2 >= 1) {
       paceW.className = 'analysis-note ok';
@@ -764,7 +821,7 @@ function updateKPIs(proj) {
   }
 
   const daysW = document.getElementById('watchDays');
-  if (daysW) {
+  if (daysW && HAS_GOAL) {
     const impliedMonthlyNeeded = daysRemaining > 0 ? remainingAfterPipeline / (daysRemaining / 30) : 0;
     if (remainingAfterPipeline <= 0) {
       daysW.className = 'analysis-note ok';
@@ -783,16 +840,35 @@ function updateKPIs(proj) {
 function updateWhatIfDisplay(oar, rec, ppr) {
   const proj = computeProjection(oar, rec, ppr);
   const goal = FALLBACK.q1Goal;
+
+  document.getElementById('wiMonthlyPace').textContent = proj.baseMonthly.toFixed(1) + '/mo';
+  document.getElementById('wiHiresRemaining').textContent = proj.remaining;
+  document.getElementById('wiTotal').textContent = proj.total;
+
+  if (!HAS_GOAL) {
+    // No Q1 goal set for this team — show pace/projection without any
+    // gap-to-goal framing, instead of dividing by a null goal.
+    const wiGapLabelEl = document.getElementById('wiGapLabel');
+    if (wiGapLabelEl) wiGapLabelEl.textContent = 'Gap to Goal (no goal set)';
+    document.getElementById('wiMonthlyPace').style.color = '#222525';
+    document.getElementById('wiTotal').style.color = '#222525';
+    document.getElementById('kpiProjected').textContent = proj.total;
+    document.getElementById('kpiProjected').style.color = '#222525';
+    document.getElementById('kpiProjectedNote').textContent = `Projected FTE hires this quarter at current pace — no Q1 goal set yet for ${_TC.name}`;
+    const remaining1b = proj.total - FALLBACK.hiresQ1ToDate;
+    document.getElementById('teamProjBreakdown').textContent = `${FALLBACK.hiresQ1ToDate} started + ~${Math.max(0,remaining1b)} projected = ${proj.total}`;
+    const wiGapEl = document.getElementById('wiGap');
+    if (wiGapEl) { wiGapEl.textContent = 'N/A'; wiGapEl.style.color = '#8A8078'; }
+    return;
+  }
+
   const projPct = Math.round(proj.total / goal * 100);
   const projColor = proj.total >= goal ? '#00B094' : proj.total >= goal * 0.9 ? '#F5A623' : '#F45D48';
 
   const wiGapLabelEl = document.getElementById('wiGapLabel');
   if (wiGapLabelEl) wiGapLabelEl.textContent = `Gap to Goal (${goal})`;
 
-  document.getElementById('wiMonthlyPace').textContent = proj.baseMonthly.toFixed(1) + '/mo';
   document.getElementById('wiMonthlyPace').style.color = proj.baseMonthly >= proj.paceNeeded ? '#00B094' : proj.baseMonthly >= proj.paceNeeded * 0.8 ? '#F5A623' : '#F45D48';
-  document.getElementById('wiHiresRemaining').textContent = proj.remaining;
-  document.getElementById('wiTotal').textContent = proj.total;
   document.getElementById('wiTotal').style.color = projColor;
 
   // Also update projected KPI + breakdown live
@@ -1341,9 +1417,9 @@ async function init() {
   if ($eyebrow) $eyebrow.textContent = _TC.name.toUpperCase() + ' · Q1 FY27';
   document.title = 'Hiring at a Glance · ' + _TC.name;
   const $goalVal = document.getElementById('teamGoalValue');
-  if ($goalVal) $goalVal.textContent = _TC.goal || 46;
+  if ($goalVal) $goalVal.textContent = HAS_GOAL ? FALLBACK.q1Goal : 'N/A';
   const $bbGoal = document.getElementById('bbGoal');
-  if ($bbGoal) $bbGoal.textContent = _TC.goal || 46;
+  if ($bbGoal) $bbGoal.textContent = HAS_GOAL ? FALLBACK.q1Goal : 'N/A';
   // Update FALLBACK counts to reflect team-specific recruiter count
   FALLBACK.baseRecruiterCount = RECRUITERS.length;
 
@@ -1566,6 +1642,13 @@ async function fetchPipelinePerJob() {
     console.log('[Pipeline] Open Reqs col indices — rReq:', rReqCol, 'rRec:', rRecCol, 'rStat:', rStatCol, 'rJobId:', rJobIdCol);
     window._openReqsData = [];
 
+    // Team is determined by who's assigned as Primary Recruiter on the req —
+    // include the team lead too, since leads sometimes carry their own reqs
+    // (e.g. Kebone Moloko/Teresa Waggoner/Jaime Tavarez all show up as Primary
+    // Recruiter on some rows). Without this filter every team's page showed
+    // the exact same org-wide open-headcount list instead of its own reqs.
+    const teamRecruiterNames = new Set([...RECRUITERS.map(r => r.name), _TC.lead].filter(Boolean));
+
     const liveByRec = {};
     for (const row of reqRows2.slice(rHdrIdx + 1)) {
       const reqId    = (row[rReqCol] || '').trim();
@@ -1575,8 +1658,10 @@ async function fetchPipelinePerJob() {
       if (!reqId) continue;
       // Always build ghJobId map for ALL reqs (including closed) so accepted offers get links
       if (ghJobId) window._ghJobIdMap[reqId] = ghJobId;
-      // Capture ALL open reqs for the headcount table (exclude E-reqs, regardless of pipeline entry)
-      if (status === 'Open' && !reqId.startsWith('E')) {
+      // Capture this team's own open reqs for the headcount table (exclude
+      // E-reqs, regardless of pipeline entry) — scoped to this team's own
+      // recruiters/lead, not the whole org.
+      if (status === 'Open' && !reqId.startsWith('E') && teamRecruiterNames.has(recruiter)) {
         window._openReqsData.push({
           reqId,
           recruiter,
