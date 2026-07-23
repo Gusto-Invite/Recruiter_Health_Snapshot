@@ -202,6 +202,7 @@ header {
 .offers-pill { font-size: 10px; padding: 2px 9px; border-radius: 20px; font-weight: 700; }
 .pill-green { background: var(--green-lt); color: var(--teal); }
 .pill-blue  { background: var(--purple-lt); color: var(--purple); }
+.pill-amber { background: var(--amber-lt);  color: var(--amber); }
 .card {
   background: var(--white); border-radius: var(--radius);
   padding: 18px 20px; border: var(--border); box-shadow: var(--shadow);
@@ -465,7 +466,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 <!-- Team Config -->
 <script>
-window.TEAM_CONFIG = { key: 'Foundation', name: 'Foundation', color: '#10B981', lead: 'Teresa Waggoner', goal: 44 };
+window.TEAM_CONFIG = { key: 'Foundation', name: 'Foundation', color: '#10B981', lead: 'Teresa Waggoner', goal: null };
 window.TEAM_RECRUITERS = [
   { name:"Nico Talaugon", goal:4, accepted:0, extended:0, oar:0, oarByLevel:{}, declines:[], reqs:[] },
   { name:"Dylan Cook", goal:4, accepted:0, extended:0, oar:0, oarByLevel:{}, declines:[], reqs:[] },
@@ -642,6 +643,7 @@ window.TEAM_RECRUITERS = [
         <div class="offers-sub">
           <span class="offers-pill pill-green" id="pillStarted">–</span>
           <span class="offers-pill pill-blue"  id="pillPending">–</span>
+          <span class="offers-pill pill-amber" id="pillJul" style="display:none">–</span>
         </div>
       </div>
       <div class="kpi-note">Q1 · excl. interns &amp; apprentices</div>

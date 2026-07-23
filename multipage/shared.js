@@ -1253,8 +1253,15 @@ async function fetchAcceptedOffers() {
       renderRisks(liveProj);
       renderInsightStrip(liveProj);
       document.getElementById('kpiAccepted').textContent = total;
+      // Each month gets its own pill so May/Jun/Jul are easy to tell apart at
+      // a glance, instead of concatenating Jun+Jul into one pill's text.
       document.getElementById('pillStarted').textContent = 'May: ' + may;
-      document.getElementById('pillPending').textContent = 'Jun: ' + jun + (jul > 0 ? ' · Jul: ' + jul : '');
+      document.getElementById('pillPending').textContent = 'Jun: ' + jun;
+      const pillJulEl = document.getElementById('pillJul');
+      if (pillJulEl) {
+        if (jul > 0) { pillJulEl.textContent = 'Jul: ' + jul; pillJulEl.style.display = ''; }
+        else { pillJulEl.style.display = 'none'; }
+      }
     }
 
     // Re-render funnel with live data in case Chart.js resize event blanked it
