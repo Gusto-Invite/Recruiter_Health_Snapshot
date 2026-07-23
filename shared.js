@@ -322,8 +322,10 @@ function renderHistChart(projected, liveHist) {
 
 // ── Decline reasons ────────────────────────────────────────────────
 function renderDeclineSection() {
-  const l4 = FALLBACK.declineReasons.L4;
-  const maxCount = l4.reasons[0][1];
+  // FALLBACK.declineReasons.L4 may legitimately be absent (no L4 declines this
+  // period) — don't assume it exists or that it has any reasons.
+  const l4 = FALLBACK.declineReasons.L4 || { total: 0, reasons: [] };
+  const maxCount = l4.reasons.length > 0 ? l4.reasons[0][1] : 0;
   const reasonColors = {
     'Cash Compensation':     '#F45D48',
     'Equity Compensation':   '#e67e22',
@@ -338,8 +340,8 @@ function renderDeclineSection() {
   // L4 horizontal bars
   let html = '';
   l4.reasons.forEach(([reason, count]) => {
-    const pct = (count / l4.total * 100).toFixed(0);
-    const barW = (count / maxCount * 100).toFixed(0);
+    const pct = l4.total > 0 ? (count / l4.total * 100).toFixed(0) : 0;
+    const barW = maxCount > 0 ? (count / maxCount * 100).toFixed(0) : 0;
     const col = reasonColors[reason] || '#4a5568';
     html += `
       <div class="decline-bar-row">
@@ -350,7 +352,29 @@ function renderDeclineSection() {
         <div class="decline-count" style="color:${col}">${count}</div>
       </div>`;
   });
+  if (l4.reasons.length === 0) html = `<div style="padding:12px 4px;color:var(--text2);font-size:12px;font-style:italic">No L4 declines this quarter.</div>`;
   document.getElementById('l4DeclineContainer').innerHTML = html;
+
+  // L4 card subtitle + callout — computed from the same l4 object driving the
+  // bars above, so it can never disagree with what's plotted.
+  const l4OarLive = FALLBACK.oarByLevel.L4;
+  const l4Subtitle = document.getElementById('l4DeclineSubtitle');
+  if (l4Subtitle) {
+    l4Subtitle.textContent = `Q1 · ${l4.total} total decline${l4.total === 1 ? '' : 's'}` +
+      (l4OarLive ? ` · OAR ${l4OarLive.oar}%` : '');
+  }
+  const l4Callout = document.getElementById('l4DeclineCallout');
+  if (l4Callout) {
+    if (l4.total > 0) {
+      const compReasons = l4.reasons.filter(([r]) => /compensation/i.test(r));
+      const compCount = compReasons.reduce((s, [,c]) => s + c, 0);
+      const compPct = Math.round(compCount / l4.total * 100);
+      const breakdown = l4.reasons.map(([r, c]) => `${r} accounts for ${Math.round(c/l4.total*100)}% (${c} of ${l4.total})`).join('; ');
+      l4Callout.innerHTML = `<strong>⚠️ ${compPct}% of Q1 L4 declines are compensation-related.</strong> ${breakdown}.`;
+    } else {
+      l4Callout.innerHTML = `<strong>✅ No L4 declines recorded in Q1.</strong>`;
+    }
+  }
 
   // Cross-level comparison grouped bar chart
   const levels = ['L1','L3','L4','L5'];
@@ -387,9 +411,31 @@ function renderDeclineSection() {
       }
     }
   });
+
+  // Pattern note — which level(s) actually carry the Q1 decline volume,
+  // recomputed from FALLBACK.declineReasons every time (never a fixed level/count).
+  const patternNote = document.getElementById('declinePatternNote');
+  if (patternNote) {
+    const withDeclines = Object.entries(FALLBACK.declineReasons)
+      .filter(([, d]) => d.total > 0)
+      .sort((a, b) => b[1].total - a[1].total);
+    if (withDeclines.length === 0) {
+      patternNote.innerHTML = `<strong>Pattern:</strong> No declines recorded at any level in Q1.`;
+    } else {
+      const [topLvl, topD] = withDeclines[0];
+      const clean = Object.keys(FALLBACK.declineReasons).filter(lvl => !FALLBACK.declineReasons[lvl].total);
+      patternNote.innerHTML = `<strong>Pattern:</strong> ${topLvl} ${withDeclines.length > 1 ? 'has the most' : 'is the only level with'} Q1 decline volume (${topD.total})` +
+        (clean.length ? `. ${clean.join(' and ')} ${clean.length > 1 ? 'are' : 'is'} accepting at 100%` : '') + `.`;
+    }
+  }
 }
 
 // ── OAR by level ───────────────────────────────────────────────────
+// FALLBACK.oarByLevel is populated purely from live accepted/extended counts
+// (see the org-level aggregation in fetchAcceptedOffers, or the static
+// snapshot in FALLBACK before live data has loaded) — no level's % here is
+// ever a fixed constant; it's always accepted÷extended for whatever the
+// current data says, the same formula for every level.
 function renderOARByLevel() {
   let html = '';
   Object.entries(FALLBACK.oarByLevel).forEach(([lvl, d]) => {
@@ -406,39 +452,207 @@ function renderOARByLevel() {
       </div>`;
   });
   document.getElementById('oarByLevel').innerHTML = html;
+
+  // Critical-level note — whichever level currently has the lowest OAR (with
+  // at least one extended offer), computed fresh every render. Nothing here
+  // names a specific level or % up front; it just reports what the data shows.
+  const oarNote = document.getElementById('oarByLevelNote');
+  if (oarNote) {
+    const levels = Object.entries(FALLBACK.oarByLevel).filter(([, d]) => d.extended > 0);
+    if (levels.length === 0) {
+      oarNote.innerHTML = `<strong>OAR by Level:</strong> No offers extended yet this quarter.`;
+    } else {
+      const [worstLvl, worstD] = levels.reduce((min, cur) => cur[1].oar < min[1].oar ? cur : min);
+      if (worstD.oar >= 85) {
+        oarNote.className = 'analysis-note';
+        oarNote.innerHTML = `<strong>On track:</strong> Every level is at or above 85% OAR — lowest is ${worstLvl} at ${worstD.oar}%.`;
+      } else {
+        const declines = FALLBACK.declineReasons[worstLvl];
+        const reasonBit = declines && declines.reasons.length > 0
+          ? `, ${declines.reasons.length === 1 && declines.total === declines.reasons[0][1] ? 'exclusively' : 'primarily'} to ${declines.reasons[0][0].toLowerCase()}`
+          : '';
+        oarNote.className = 'analysis-note risk';
+        oarNote.innerHTML = `<strong>⚠ Critical — ${worstLvl}:</strong> ${worstD.oar}% OAR (${worstD.accepted}/${worstD.extended}) is the lowest of any level${reasonBit}. This is the highest-leverage level to address this quarter.`;
+      }
+    }
+  }
 }
 
 // ── Risk flags ─────────────────────────────────────────────────────
 function renderRisks(proj) {
   const gap = proj.gap;
-  const l4OAR = FALLBACK.oarByLevel.L4.oar;
+  const goal = FALLBACK.q1Goal;
   const offerCount = FALLBACK.pipeline.offer.slice(-1)[0];
   const latestIR = FALLBACK.pipeline.ir.slice(-1)[0];
+
+  // Whichever level currently has the lowest OAR (min 1 extended offer) — not
+  // fixed to L4. If a different level ever ends up weakest, this card follows.
+  const levelsWithData = Object.entries(FALLBACK.oarByLevel).filter(([, d]) => d.extended > 0);
+  const [worstLvl, worstD] = levelsWithData.length > 0
+    ? levelsWithData.reduce((min, cur) => cur[1].oar < min[1].oar ? cur : min)
+    : [null, { oar: null }];
+
   const risks = [
     {
       level: gap >= 15 ? 'risk-high' : gap >= 8 ? 'risk-mid' : 'risk-low',
       icon: gap >= 15 ? '🔴' : gap >= 8 ? '🟡' : '🟢',
       title: gap > 0 ? `${gap}-Hire FTE Gap to Goal` : 'FTE Goal Within Reach',
       desc: gap > 0
-        ? `At current FTE pace (${proj.baseMonthly.toFixed(1)}/mo), Q1 projects to ~${proj.total} vs goal of 46. Need ${proj.paceNeeded.toFixed(1)}/mo.`
-        : `Projected to meet or exceed the 46-hire Q1 FTE goal.`
-    },
-    {
-      level: l4OAR < 70 ? 'risk-high' : 'risk-mid',
-      icon: l4OAR < 70 ? '🔴' : '🟡',
-      title: `L4 OAR at ${l4OAR}%`,
-      desc: `L4 (Staff) offers declining at ${l4OAR}% acceptance vs 85% average. Compensation or competing offers driving rejections.`
-    },
-    {
-      level: offerCount < 6 ? 'risk-high' : offerCount < 10 ? 'risk-mid' : 'risk-low',
-      icon: offerCount < 6 ? '🔴' : '🟡',
-      title: `${offerCount} Active Offers + 15 Upcoming Starts`,
-      desc: `${offerCount} in Offer stage, ${FALLBACK.acceptedPending} accepted offers with future start dates (through Jul 31). IR pipeline (${latestIR}) feeding offer stage.`
+        ? `At current FTE pace (${proj.baseMonthly.toFixed(1)}/mo), Q1 projects to ~${proj.total} vs goal of ${goal}. Need ${proj.paceNeeded.toFixed(1)}/mo.`
+        : `Projected to meet or exceed the ${goal}-hire Q1 FTE goal.`
     }
   ];
+
+  if (worstLvl) {
+    risks.push({
+      level: worstD.oar < 70 ? 'risk-high' : worstD.oar < 85 ? 'risk-mid' : 'risk-low',
+      icon: worstD.oar < 70 ? '🔴' : worstD.oar < 85 ? '🟡' : '🟢',
+      title: `${worstLvl} OAR at ${worstD.oar}%`,
+      desc: worstD.oar < 85
+        ? `${worstLvl} offers accepting at ${worstD.oar}% (${worstD.accepted}/${worstD.extended}) — the lowest of any level. Compensation or competing offers likely driving rejections.`
+        : `${worstLvl} is the lowest level at ${worstD.oar}% OAR, but every level is still at or above 85%.`
+    });
+  }
+
+  risks.push({
+    level: offerCount < 6 ? 'risk-high' : offerCount < 10 ? 'risk-mid' : 'risk-low',
+    icon: offerCount < 6 ? '🔴' : '🟡',
+    title: `${offerCount} Active Offers + ${FALLBACK.acceptedPending} Upcoming Starts`,
+    desc: `${offerCount} in Offer stage, ${FALLBACK.acceptedPending} accepted offers with future start dates (through Jul 31). IR pipeline (${latestIR}) feeding offer stage.`
+  });
+
   document.getElementById('risksContainer').innerHTML = risks.map(r =>
     `<div class="risk-card ${r.level}"><div class="risk-icon">${r.icon}</div><div><div class="risk-title">${r.title}</div><div class="risk-desc">${r.desc}</div></div></div>`
   ).join('');
+}
+
+// ── Dynamic notes/insight-chips ──────────────────────────────────────
+// Every number below is read from FALLBACK/proj/pipeline at render time —
+// nothing here is a snapshot string. Called once at init() with fallback
+// data and again once live Offers data has loaded, so these never go stale
+// the way baked-in HTML text would.
+function renderDynamicNotes(proj) {
+  const goal = FALLBACK.q1Goal;
+
+  // Deadline chip
+  const deadlineEl = document.getElementById('insightDeadlineText');
+  if (deadlineEl) deadlineEl.textContent = `${daysRemaining} days left in Q1`;
+
+  // Risk / Win chips — driven by whichever level currently has the lowest
+  // and highest OAR, not a level named in advance.
+  const levelsWithData = Object.entries(FALLBACK.oarByLevel).filter(([, d]) => d.extended > 0);
+  if (levelsWithData.length > 0) {
+    const [worstLvl, worstD] = levelsWithData.reduce((min, cur) => cur[1].oar < min[1].oar ? cur : min);
+    const bestOar = Math.max(...levelsWithData.map(([, d]) => d.oar));
+    const bestLevels = levelsWithData.filter(([, d]) => d.oar === bestOar).map(([lvl]) => lvl);
+
+    const riskText = document.getElementById('insightRiskText');
+    const riskSub  = document.getElementById('insightRiskSub');
+    if (riskText) riskText.textContent = `${worstLvl} OAR at ${worstD.oar}%`;
+    if (riskSub) {
+      const decl = FALLBACK.declineReasons[worstLvl];
+      if (worstD.oar >= 85) {
+        riskSub.textContent = `Healthy — every level is at or above 85% OAR.`;
+      } else if (decl && decl.reasons.length > 0) {
+        const compPct = Math.round(decl.reasons.filter(([r]) => /compensation/i.test(r)).reduce((s,[,c])=>s+c,0) / decl.total * 100);
+        riskSub.textContent = compPct > 0
+          ? `${compPct}% of declines are comp—escalate band review immediately.`
+          : `${decl.reasons[0][0]} is the leading decline reason.`;
+      } else {
+        riskSub.textContent = `Lowest OAR of any level this quarter.`;
+      }
+    }
+
+    const winText = document.getElementById('insightWinText');
+    const winSub  = document.getElementById('insightWinSub');
+    if (winText) winText.textContent = bestLevels.length > 1
+      ? `${bestLevels.join(' & ')} at ${bestOar}% OAR`
+      : `${bestLevels[0]} at ${bestOar}% OAR`;
+    if (winSub) winSub.textContent = bestOar >= 100
+      ? `No declines at ${bestLevels.length > 1 ? 'those levels' : 'that level'} in Q1—strong close rate.`
+      : `Best-performing level${bestLevels.length > 1 ? 's' : ''} this quarter.`;
+  }
+
+  // Projection risk note (Monthly FTE Hire Projection card)
+  const projNote = document.getElementById('projectionNote');
+  if (projNote) {
+    if (proj.gap > 0) {
+      projNote.className = 'analysis-note risk';
+      projNote.innerHTML = `<strong>⚠ Risk:</strong> Base scenario projects ~${proj.total} FTE — a ${proj.gap}-hire gap to goal. Closing the gap requires accelerating offer volume significantly.`;
+    } else {
+      projNote.className = 'analysis-note';
+      projNote.innerHTML = `<strong>✅ On track:</strong> Base scenario projects ~${proj.total} FTE, at or above the ${goal}-hire goal.`;
+    }
+  }
+
+  // Funnel bottleneck note — prefers the live per-job pipeline snapshot when
+  // it's available, falls back to the last known FALLBACK.pipeline week.
+  const funnelNote = document.getElementById('funnelNote');
+  if (funnelNote) {
+    const pd = window._livePipelineData || FALLBACK.pipeline;
+    const offerCount = pd.offer.slice(-1)[0];
+    const irCount = pd.ir.slice(-1)[0];
+    const irMin = Math.min(...FALLBACK.pipeline.ir);
+    funnelNote.innerHTML = `<strong>⚠ Bottleneck:</strong> Only ${offerCount} active offers against a pace requiring ~${proj.paceNeeded.toFixed(1)} closes/month. ` +
+      (irCount <= irMin ? `IR pool is at a multi-week low.` : `IR pipeline currently at ${irCount}.`);
+  }
+
+  // Pipeline stage trend note (Interview Round drop over the tracked weeks)
+  const trendNote = document.getElementById('trendNote');
+  if (trendNote) {
+    const ir = FALLBACK.pipeline.ir;
+    const first = ir[0], last = ir[ir.length - 1];
+    const pctChange = first > 0 ? Math.round((last - first) / first * 100) : 0;
+    const weeks = ir.length - 1;
+    if (pctChange < 0) {
+      trendNote.innerHTML = `<strong>⚠ Watch:</strong> Interview Round dropped ${Math.abs(pctChange)}% over ${weeks} weeks (${first} → ${last}), directly compressing the offer stage. This trend needs to reverse to generate sufficient offer volume.`;
+    } else {
+      trendNote.className = 'analysis-note';
+      trendNote.innerHTML = `<strong>Stable/up:</strong> Interview Round moved ${pctChange >= 0 ? '+' : ''}${pctChange}% over ${weeks} weeks (${first} → ${last}).`;
+    }
+  }
+
+  // What-if sliders — "current" impact text, read from live baseline every time
+  const worst = getWorstOARLevel();
+  const oarImpact = document.getElementById('oarImpact');
+  if (oarImpact) oarImpact.textContent = worst
+    ? `Baseline OAR · ${worst[0]} currently at ${worst[1].oar}%`
+    : `Baseline OAR`;
+  const recImpact = document.getElementById('recImpact');
+  if (recImpact) recImpact.textContent = `Each recruiter adds ~${FALLBACK.basePPR.toFixed(2)} FTE hires/month`;
+}
+
+// ── Slider baselines ──────────────────────────────────────────────
+// Syncs each what-if slider's starting position/label to the actual
+// FALLBACK assumption it represents, instead of a number typed into the
+// HTML once and left behind. Run once at init() — these are planning
+// assumptions (not derived from the Offers sheet), so they don't need to
+// re-sync after live data loads the way OAR-by-level does.
+function syncSliderBaselines() {
+  const oarPct = Math.round(FALLBACK.baseOAR * 100);
+  const rec = FALLBACK.baseRecruiterCount;
+  const ppr = FALLBACK.basePPR;
+
+  const oarSlider = document.getElementById('oarSlider');
+  if (oarSlider) oarSlider.value = oarPct;
+  const oarCurrentLabel = document.getElementById('oarCurrentLabel');
+  if (oarCurrentLabel) oarCurrentLabel.textContent = oarPct + '%';
+  const oarSliderVal = document.getElementById('oarSliderVal');
+  if (oarSliderVal) oarSliderVal.textContent = oarPct + '%';
+
+  const recSlider = document.getElementById('recSlider');
+  if (recSlider) recSlider.value = rec;
+  const recCurrentLabel = document.getElementById('recCurrentLabel');
+  if (recCurrentLabel) recCurrentLabel.textContent = rec;
+  const recSliderVal = document.getElementById('recSliderVal');
+  if (recSliderVal) recSliderVal.textContent = rec;
+
+  const pprSlider = document.getElementById('pprSlider');
+  if (pprSlider) pprSlider.value = ppr;
+  const pprCurrentLabel = document.getElementById('pprCurrentLabel');
+  if (pprCurrentLabel) pprCurrentLabel.textContent = ppr.toFixed(2);
+  const pprSliderVal = document.getElementById('pprSliderVal');
+  if (pprSliderVal) pprSliderVal.textContent = ppr.toFixed(2);
 }
 
 // ── Update KPIs ────────────────────────────────────────────────────
@@ -507,7 +721,7 @@ function updateKPIs(proj) {
     const kpiPaceNeeded = document.getElementById('kpiPaceNeeded');
     if (kpiPaceNeeded) kpiPaceNeeded.textContent = `Need ${proj.paceNeeded.toFixed(1)}/mo to hit goal`;
     const kpiPaceNote = document.getElementById('kpiPaceNote');
-    if (kpiPaceNote) kpiPaceNote.textContent = `${paceRatio}% of needed pace · 9 recruiters × 1.44 PPR`;
+    if (kpiPaceNote) kpiPaceNote.textContent = `${paceRatio}% of needed pace · ${FALLBACK.baseRecruiterCount} recruiters × ${FALLBACK.basePPR.toFixed(2)} PPR`;
   }
 
   // Days card (may be absent from team view)
@@ -541,29 +755,36 @@ function updateKPIs(proj) {
     `${hiresWithPipeline} confirmed · ${remainingAfterPipeline} more needed in ${daysRemaining}d`;
 
   // ── Dynamic analysis notes ────────────────────────────────────────
+  // (goalW/projW previously had no null-guard — since #watchGoal and
+  // #watchProjected don't exist on this page layout, that threw on every
+  // single render and silently skipped watchPace/watchDays below it too.)
   const goalW = document.getElementById('watchGoal');
   const stillLeft = Math.max(0, goal - accepted);
-  if (stillLeft === 0) {
-    goalW.className = 'analysis-note ok';
-    goalW.innerHTML = '<strong>✓ On track:</strong> Goal is covered by accepted offers.';
-  } else if (accepted / goal >= 0.6) {
-    goalW.className = 'analysis-note';
-    goalW.innerHTML = `<strong>Watch:</strong> ${stillLeft} more offers need to be accepted before Jul 31 to hit goal. Focus on converting active pipeline to offers in June.`;
-  } else {
-    goalW.className = 'analysis-note risk';
-    goalW.innerHTML = `<strong>⚠ At risk:</strong> Only ${Math.round(accepted/goal*100)}% of goal confirmed. Requires ${stillLeft} more accepts in ${daysRemaining} days — a significant acceleration from current pace.`;
+  if (goalW) {
+    if (stillLeft === 0) {
+      goalW.className = 'analysis-note ok';
+      goalW.innerHTML = '<strong>✓ On track:</strong> Goal is covered by accepted offers.';
+    } else if (accepted / goal >= 0.6) {
+      goalW.className = 'analysis-note';
+      goalW.innerHTML = `<strong>Watch:</strong> ${stillLeft} more offers need to be accepted before Jul 31 to hit goal. Focus on converting active pipeline to offers in June.`;
+    } else {
+      goalW.className = 'analysis-note risk';
+      goalW.innerHTML = `<strong>⚠ At risk:</strong> Only ${Math.round(accepted/goal*100)}% of goal confirmed. Requires ${stillLeft} more accepts in ${daysRemaining} days — a significant acceleration from current pace.`;
+    }
   }
 
   const projW = document.getElementById('watchProjected');
-  if (proj.gap <= 0) {
-    projW.className = 'analysis-note ok';
-    projW.innerHTML = '<strong>✓ On pace:</strong> Base projection meets or exceeds goal at current recruiter count and OAR.';
-  } else if (proj.gap <= 5) {
-    projW.className = 'analysis-note';
-    projW.innerHTML = `<strong>Watch:</strong> ${proj.gap}-hire gap is closable — improving OAR by ~5pp or adding one recruiter brings projection to goal.`;
-  } else {
-    projW.className = 'analysis-note risk';
-    projW.innerHTML = `<strong>⚠ At risk:</strong> ${proj.gap}-hire gap requires meaningful intervention. Use the what-if sliders below to model scenarios.`;
+  if (projW) {
+    if (proj.gap <= 0) {
+      projW.className = 'analysis-note ok';
+      projW.innerHTML = '<strong>✓ On pace:</strong> Base projection meets or exceeds goal at current recruiter count and OAR.';
+    } else if (proj.gap <= 5) {
+      projW.className = 'analysis-note';
+      projW.innerHTML = `<strong>Watch:</strong> ${proj.gap}-hire gap is closable — improving OAR by ~5pp or adding one recruiter brings projection to goal.`;
+    } else {
+      projW.className = 'analysis-note risk';
+      projW.innerHTML = `<strong>⚠ At risk:</strong> ${proj.gap}-hire gap requires meaningful intervention. Use the what-if sliders below to model scenarios.`;
+    }
   }
 
   const paceW = document.getElementById('watchPace');
@@ -630,6 +851,14 @@ function updateWhatIfDisplay(oar, rec, ppr) {
   else { document.getElementById('wiGap').textContent = '+' + Math.abs(proj.gap); document.getElementById('wiGap').style.color = '#00B094'; }
 }
 
+// Whichever level currently has the lowest OAR (≥1 extended offer) — shared
+// by renderDynamicNotes() and onSliderChange() so neither ever falls back to
+// a hardcoded level/%.
+function getWorstOARLevel() {
+  const levels = Object.entries(FALLBACK.oarByLevel).filter(([, d]) => d.extended > 0);
+  return levels.length > 0 ? levels.reduce((min, cur) => cur[1].oar < min[1].oar ? cur : min) : null;
+}
+
 // ── Slider handler ─────────────────────────────────────────────────
 function onSliderChange() {
   const oar = parseInt(document.getElementById('oarSlider').value) / 100;
@@ -639,9 +868,11 @@ function onSliderChange() {
   document.getElementById('recSliderVal').textContent = rec;
   document.getElementById('pprSliderVal').textContent = ppr.toFixed(2);
   const oarDelta = ((oar - FALLBACK.baseOAR) * 100).toFixed(0);
-  document.getElementById('oarImpact').textContent = oarDelta > 0 ? `↑ ${oarDelta}pp above baseline` : oarDelta < 0 ? `↓ ${Math.abs(oarDelta)}pp below baseline` : 'Baseline OAR · L4 currently at 66%';
+  const worst = getWorstOARLevel();
+  const baselineOarText = worst ? `Baseline OAR · ${worst[0]} currently at ${worst[1].oar}%` : 'Baseline OAR';
+  document.getElementById('oarImpact').textContent = oarDelta > 0 ? `↑ ${oarDelta}pp above baseline` : oarDelta < 0 ? `↓ ${Math.abs(oarDelta)}pp below baseline` : baselineOarText;
   const recDelta = rec - FALLBACK.baseRecruiterCount;
-  document.getElementById('recImpact').textContent = recDelta !== 0 ? `${recDelta > 0 ? '+' : ''}${recDelta} vs baseline · ~${Math.abs(Math.round(recDelta * ppr * monthsLeft))} Q1 hire impact` : 'Baseline recruiter count';
+  document.getElementById('recImpact').textContent = recDelta !== 0 ? `${recDelta > 0 ? '+' : ''}${recDelta} vs baseline · ~${Math.abs(Math.round(recDelta * ppr * monthsLeft))} Q1 hire impact` : `Each recruiter adds ~${FALLBACK.basePPR.toFixed(2)} FTE hires/month`;
   updateWhatIfDisplay(oar, rec, ppr);
   renderGauge(computeHealth(oar, rec, ppr));
   renderRisks(computeProjection(oar, rec, ppr));
@@ -813,6 +1044,13 @@ async function fetchAcceptedOffers() {
     const recLive = {};
     // Quarterly history buckets (Engineering only) { label → {accepted, extended} }
     const qBuckets = {};
+    // Org-wide (team) level tracking — this is what drives the "OAR by Level" card,
+    // the L4 decline chart, and every note that quotes an OAR/decline number. It is
+    // rebuilt from the live Offers rows below; FALLBACK.oarByLevel/declineReasons are
+    // only the pre-load snapshot and are overwritten once real rows are available, so
+    // no level's OAR is ever hardcoded — it's always acc/ext computed from the data.
+    const orgByLevel = {};       // { L4: { acc, ext } }
+    const orgDeclineByLevel = {}; // { L4: { total, reasons: { reasonName: count } } }
 
     let _dbg = 0, _dbgSkipStatus=0, _dbgSkipNonFTE=0, _dbgSkipDate=0, _dbgSkipYr=0;
     for (const row of rows.slice(headerIdx + 1)) {
@@ -885,6 +1123,11 @@ async function fetchAcceptedOffers() {
             recLive[recruiter].byLevel[levelKey].ext++;
           }
         }
+        if (levelKey) {
+          if (!orgByLevel[levelKey]) orgByLevel[levelKey] = { acc: 0, ext: 0 };
+          orgByLevel[levelKey].acc++;
+          orgByLevel[levelKey].ext++;
+        }
 
         const candidateName = candCol >= 0
           ? (row[candCol] || '').trim()
@@ -909,6 +1152,18 @@ async function fetchAcceptedOffers() {
           if (status === 'Declined' && declReasonCol >= 0) {
             const reason = (row[declReasonCol] || '').trim();
             if (reason) recLive[recruiter].declReasons[reason] = (recLive[recruiter].declReasons[reason] || 0) + 1;
+          }
+        }
+        if (levelKey) {
+          if (!orgByLevel[levelKey]) orgByLevel[levelKey] = { acc: 0, ext: 0 };
+          orgByLevel[levelKey].ext++;
+        }
+        if (status === 'Declined' && declReasonCol >= 0 && levelKey) {
+          const reason = (row[declReasonCol] || '').trim();
+          if (reason) {
+            if (!orgDeclineByLevel[levelKey]) orgDeclineByLevel[levelKey] = { total: 0, reasons: {} };
+            orgDeclineByLevel[levelKey].total++;
+            orgDeclineByLevel[levelKey].reasons[reason] = (orgDeclineByLevel[levelKey].reasons[reason] || 0) + 1;
           }
         }
       }
@@ -947,6 +1202,37 @@ async function fetchAcceptedOffers() {
       console.log(`[Offers] FALLBACK updated — total:${total} started:${startedCount} pending:${pendingCount}`);
     }
 
+    // ── Recompute org-wide OAR-by-level purely from live acc/ext counts ──
+    // No level's OAR is a hardcoded number: every level (L1, L3, L4, L5, ...)
+    // is derived the same way — accepted ÷ extended for that level, from
+    // whatever the sheet actually contains this run. If a level has no rows
+    // yet, it's simply absent (not defaulted to some baked-in %).
+    const newOrgOAL = {};
+    Object.entries(orgByLevel).forEach(([lvl, v]) => {
+      newOrgOAL[lvl] = {
+        oar: v.ext > 0 ? Math.round(v.acc / v.ext * 100) : 0,
+        accepted: v.acc,
+        extended: v.ext
+      };
+    });
+    if (Object.keys(newOrgOAL).length > 0) {
+      FALLBACK.oarByLevel = newOrgOAL;
+      console.log('[Offers] Live oarByLevel:', newOrgOAL);
+    }
+
+    // ── Recompute org-wide decline reasons by level from live rows ───────
+    const newOrgDecl = {};
+    Object.entries(orgDeclineByLevel).forEach(([lvl, v]) => {
+      newOrgDecl[lvl] = {
+        total: v.total,
+        reasons: Object.entries(v.reasons).sort((a, b) => b[1] - a[1])
+      };
+    });
+    if (Object.keys(newOrgDecl).length > 0) {
+      FALLBACK.declineReasons = newOrgDecl;
+      console.log('[Offers] Live declineReasons:', newOrgDecl);
+    }
+
     // ── Update per-recruiter data from live Offers sheet ─────────────
     RECRUITERS.forEach(r => {
       const d = recLive[r.name];
@@ -967,9 +1253,17 @@ async function fetchAcceptedOffers() {
     if (total > 0) {
       OFFERS_LIVE_LOADED = true;
       const oar = FALLBACK.baseOAR, rec = FALLBACK.baseRecruiterCount, ppr = FALLBACK.basePPR;
-      updateKPIs(computeProjection(oar, rec, ppr));
+      const liveProj = computeProjection(oar, rec, ppr);
+      updateKPIs(liveProj);
       renderGauge(computeHealth(oar, rec, ppr));
       renderOARByLevel();
+      // These previously only ran once at init() against fallback data and
+      // never refreshed once live numbers arrived — re-run them here so the
+      // risk cards and decline chart reflect the same live oarByLevel/
+      // declineReasons that were just rebuilt above.
+      try { renderDeclineSection(); } catch(e) { console.warn('renderDeclineSection (live):', e); }
+      try { renderRisks(liveProj); } catch(e) { console.warn('renderRisks (live):', e); }
+      try { renderDynamicNotes(liveProj); } catch(e) { console.warn('renderDynamicNotes (live):', e); }
       document.getElementById('kpiAccepted').textContent = total;
       document.getElementById('pillStarted').textContent = 'May: ' + may;
       document.getElementById('pillPending').textContent = 'Jun: ' + jun + (jul > 0 ? ' · Jul: ' + jul : '');
@@ -1158,6 +1452,8 @@ async function init() {
   try { renderDeclineSection(); } catch(e) { console.warn('renderDeclineSection:', e); }
   try { renderRisks(proj); } catch(e) { console.warn('renderRisks:', e); }
   try { updateWhatIfDisplay(oar, rec, ppr); } catch(e) { console.warn('updateWhatIfDisplay:', e); }
+  try { syncSliderBaselines(); } catch(e) { console.warn('syncSliderBaselines:', e); }
+  try { renderDynamicNotes(proj); } catch(e) { console.warn('renderDynamicNotes:', e); }
 
   document.getElementById('footerText').textContent =
     `Gusto Engineering Recruiting · ${daysElapsed}d elapsed (${pctThrough}% of Q1) · ${daysRemaining}d remaining`;
@@ -1412,6 +1708,10 @@ async function fetchPipelinePerJob() {
     };
     window._livePipelineData = liveSnapshot;
     try { renderFunnel(liveSnapshot); } catch(e) { console.warn('[Pipeline] renderFunnel from live snapshot failed:', e); }
+    try {
+      const oar = FALLBACK.baseOAR, rec = FALLBACK.baseRecruiterCount, ppr = FALLBACK.basePPR;
+      renderDynamicNotes(computeProjection(oar, rec, ppr));
+    } catch(e) { console.warn('[Pipeline] renderDynamicNotes failed:', e); }
     const footerEl = document.getElementById('footerText');
     if (footerEl) footerEl.textContent =
       `🟢 Live · ${_TC.name} Recruiting · ${daysElapsed}d elapsed (${pctThrough}% of Q1) · ${daysRemaining}d remaining`;
