@@ -107,7 +107,7 @@ window._acceptedOffersList = [];  // full accepted offer records
 window._ghJobIdMap = {};          // reqId → Greenhouse job ID
 window._pipelineHistory = {};     // reqId → { assess, f2f, offer, hired, assessToF2f, f2fToOffer, offerToHire }
 
-// ── Pipeline History PTR fetch ──────────────────────────────
+// ── Pipeline History PTR fetch ─────────────────────────────────────
 // Columns: Job Name | Requisition ID | Application Review | Recruiter Screen | Interview Round | Hiring Committee | Offer
 async function fetchPipelineHistory() {
   try {
@@ -159,7 +159,7 @@ async function fetchPipelineHistory() {
   } catch(e) { console.error('[PipelineHistory] fetch failed:', e); }
 }
 
-// ── Live pipeline per job fetch ────────────────────────────────
+// ── Live pipeline per job fetch ────────────────────────────────────
 async function fetchPipelinePerJob() {
   try {
     // Fetch both sheets in parallel
@@ -169,7 +169,7 @@ async function fetchPipelinePerJob() {
     ]);
     if (!pipeTxt || !reqTxt) return;
 
-    // ── Parse Pipeline Per Job ──────────────────────────
+    // ── Parse Pipeline Per Job ──────────────────────────────────
     const pipeRows = lines(pipeTxt);
     let pHdr = null, pHdrIdx = -1;
     for (let i = 0; i < pipeRows.length; i++) {
@@ -206,7 +206,7 @@ async function fetchPipelinePerJob() {
       };
     }
 
-    // ── Parse Open Reqs for recruiter assignments ─────────────
+    // ── Parse Open Reqs for recruiter assignments ───────────────
     const reqRows2 = lines(reqTxt);
     let rHdr = null, rHdrIdx = -1;
     for (let i = 0; i < reqRows2.length; i++) {
@@ -312,7 +312,7 @@ async function fetchPipelinePerJob() {
   } catch(e) { console.error('[Pipeline] fetchPipelinePerJob failed:', e); }
 }
 
-// ── Pipeline data refresh ──────────────────────────────────────
+// ── Pipeline data refresh ──────────────────────────────────────────────
 async function refreshPipelineData(btnEl) {
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = '↺ Refreshing…'; }
   _appsScriptCache = null;
@@ -353,7 +353,7 @@ function switchTab(nameOrIdx, el) {
   }
 }
 
-// ── Per-recruiter health & projection ──────────────────────────
+// ── Per-recruiter health & projection ──────────────────────────────────
 function recruiterHealth(r) {
   // Use projected total (accepted + pipeline) for goal score — reflects where they'll end up
   const projected = recruiterProjected(r);
@@ -405,7 +405,7 @@ function recruiterProjected(r) {
   return r.accepted + Math.round(monthlyPace * monthsLeft);
 }
 
-// ── Predictive analysis action items ──────────────────────────
+// ── Predictive analysis action items ──────────────────────────────────
 // Pipeline History columns (updated):
 //   Application Review → Recruiter Screen → Interview Round → Hiring Committee → Offer
 // Live pipeline stages: RS, IA, IR, HC, Offer
@@ -554,7 +554,7 @@ function buildPredictiveInsight(r, liveReqs) {
     </div>`).join('');
 }
 
-// ── Recruiter view renderer ──────────────────────────────────
+// ── Recruiter view renderer ─────────────────────────────────────────
 function renderRecruiterView(r) {
   currentRecruiter = r;
   const health    = recruiterHealth(r);
@@ -1000,7 +1000,7 @@ function toggleInsight(id) {
   }
 }
 
-// ── Req table helpers ───────────────────────────────────────────
+// ── Req table helpers ─────────────────────────────────────────────────
 function addReqRow() {
   if (!currentRecruiter) return;
   currentRecruiter.reqs.push({ name:'', rs:0, ia:0, ir:0, hc:0, offer:0 });
@@ -1016,7 +1016,7 @@ function updateReqData(idx, field, val) {
   currentRecruiter.reqs[idx][field] = field === 'name' ? val : (parseInt(val) || 0);
 }
 
-// ── Health Score Screen Effects ─────────────────────────────────
+// ── Health Score Screen Effects ────────────────────────────────────
 let _lastEffectKey = null;
 
 function triggerHealthEffect(score, recruiterName, bigMode) {
