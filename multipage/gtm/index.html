@@ -202,6 +202,7 @@ header {
 .offers-pill { font-size: 10px; padding: 2px 9px; border-radius: 20px; font-weight: 700; }
 .pill-green { background: var(--green-lt); color: var(--teal); }
 .pill-blue  { background: var(--purple-lt); color: var(--purple); }
+.pill-amber { background: var(--amber-lt);  color: var(--amber); }
 .card {
   background: var(--white); border-radius: var(--radius);
   padding: 18px 20px; border: var(--border); box-shadow: var(--shadow);
@@ -465,7 +466,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 <!-- Team Config -->
 <script>
-window.TEAM_CONFIG = { key: 'GTM', name: 'GTM', color: '#0A8080', lead: 'Lisa Pham', goal: 16 };
+window.TEAM_CONFIG = { key: 'GTM', name: 'GTM', color: '#0A8080', lead: 'Lisa Pham', goal: null };
 window.TEAM_RECRUITERS = [
   { name:"Gina Panacci", goal:4, accepted:0, extended:0, oar:0, oarByLevel:{}, declines:[], reqs:[] },
   { name:"John Thomas", goal:4, accepted:0, extended:0, oar:0, oarByLevel:{}, declines:[], reqs:[] },
@@ -635,6 +636,7 @@ window.TEAM_RECRUITERS = [
         <div class="offers-sub">
           <span class="offers-pill pill-green" id="pillStarted">–</span>
           <span class="offers-pill pill-blue"  id="pillPending">–</span>
+          <span class="offers-pill pill-amber" id="pillJul" style="display:none">–</span>
         </div>
       </div>
       <div class="kpi-note">Q1 · excl. interns &amp; apprentices</div>
@@ -675,12 +677,12 @@ window.TEAM_RECRUITERS = [
         </div>
       </div>
       <div class="chart-container" style="height:220px"><canvas id="projectionChart"></canvas></div>
-      <div class="analysis-note risk"><strong>⚠ Risk:</strong> Base scenario projects ~43 FTE — an 11-hire gap to goal. Closing the gap requires accelerating July offer volume significantly.</div>
+      <div class="analysis-note risk" id="projectionNote">Calculating…</div>
     </div>
     <div class="card">
       <div class="card-title">Current Pipeline Funnel <span id="funnelDate"></span></div>
       <div id="funnelContainer"></div>
-      <div class="analysis-note risk"><strong>⚠ Bottleneck:</strong> Only 7 active offers against a goal requiring ~18 closes/month. IR pool is at a multi-week low.</div>
+      <div class="analysis-note risk" id="funnelNote">Calculating…</div>
     </div>
   </div>
   <div class="bottom-row">
@@ -694,7 +696,7 @@ window.TEAM_RECRUITERS = [
     <div class="whatif-card">
       <div class="card-title" style="font-size:13px;margin-bottom:8px">Offer Acceptance Rate (OAR)</div>
       <div class="slider-label">
-        <div class="slider-name">Current: <span style="color:var(--ink-60)">85%</span></div>
+        <div class="slider-name">Current: <span style="color:var(--ink-60)" id="oarCurrentLabel">–</span></div>
         <div class="slider-val" id="oarSliderVal">85%</div>
       </div>
       <input type="range" id="oarSlider" min="55" max="100" value="85" step="1" oninput="onSliderChange()">
@@ -704,7 +706,7 @@ window.TEAM_RECRUITERS = [
     <div class="whatif-card">
       <div class="card-title" style="font-size:13px;margin-bottom:8px">Active Recruiters</div>
       <div class="slider-label">
-        <div class="slider-name">Current: <span style="color:var(--ink-60)">9</span></div>
+        <div class="slider-name">Current: <span style="color:var(--ink-60)" id="recCurrentLabel">–</span></div>
         <div class="slider-val" id="recSliderVal">9</div>
       </div>
       <input type="range" id="recSlider" min="6" max="14" value="9" step="1" oninput="onSliderChange()">
@@ -714,7 +716,7 @@ window.TEAM_RECRUITERS = [
     <div class="whatif-card">
       <div class="card-title" style="font-size:13px;margin-bottom:8px">PPR (Hires per Recruiter/Mo)</div>
       <div class="slider-label">
-        <div class="slider-name">Baseline: <span style="color:var(--ink-60)">1.44</span></div>
+        <div class="slider-name">Baseline: <span style="color:var(--ink-60)" id="pprCurrentLabel">–</span></div>
         <div class="slider-val" id="pprSliderVal">1.44</div>
       </div>
       <input type="range" id="pprSlider" min="0.8" max="2.5" value="1.44" step="0.05" oninput="onSliderChange()">
@@ -740,7 +742,7 @@ window.TEAM_RECRUITERS = [
     <div class="card">
       <div class="card-title">OAR by Level (Q1 Actuals)</div>
       <div class="oar-row" id="oarByLevel"></div>
-      <div class="analysis-note risk"><strong>⚠ Critical — L4:</strong> 56% OAR means nearly half of Staff-level offers are being lost, exclusively to comp. Addressing comp bands for L4 is the highest-leverage action this quarter.</div>
+      <div class="analysis-note risk" id="oarByLevelNote">Calculating…</div>
     </div>
   </div>
   <div class="decline-row">
@@ -752,7 +754,7 @@ window.TEAM_RECRUITERS = [
     <div class="card">
       <div class="card-title">Decline Reasons by Level <span>Q1 (May–Jul 2026) · excl. interns</span></div>
       <div class="chart-container" style="height:220px"><canvas id="declineCompChart"></canvas></div>
-      <div class="analysis-note"><strong>Pattern:</strong> L4 is the only level with meaningful Q1 decline volume (8). L1 and L3 are accepting at 100%. The problem is concentrated at Staff level.</div>
+      <div class="analysis-note" id="declinePatternNote">Calculating…</div>
     </div>
   </div>
   <div class="risks-row" id="risksContainer"></div>
