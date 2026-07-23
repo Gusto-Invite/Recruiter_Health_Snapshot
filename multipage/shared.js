@@ -1134,3 +1134,966 @@ async function fetchSheetRows(sheetName) {
   if (!rows || rows.length === 0) throw new Error(`Sheet "${sheetName}" returned no data`);
   return arrayToTSV(rows);
 }
+
+async function fetchAcceptedOffers() {
+  try {
+    const txt = await fetchSheetRows('Offers');
+    console.log('[Offers] txt length:', txt ? txt.length : 'null');
+    if (!txt || txt.length < 100) { console.warn('[Offers] txt too short, aborting'); return; }
+    const rows = lines(txt);
+    console.log('[Offers] row count:', rows.length, '| first row sample:', rows[0] && rows[0].slice(0,3));
+    let headerIdx = -1, statCol = -1, resCol = -1, jobCol = -1,
+        candCol = -1, firstCol = -1, lastCol = -1, reqIdCol = -1, recCol = -1, startCol = -1, appIdCol = -1,
+        declReasonCol = -1, lvlCol = -1;
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].some(c => /^status/i.test(c)) && rows[i].includes('Resolved')) {
+        headerIdx = i;
+        const h = rows[i];
+        statCol       = h.findIndex(c => /^status/i.test(c));
+        resCol        = h.indexOf('Resolved');
+        jobCol        = h.findIndex(c => /^job/i.test(c));
+        candCol       = h.indexOf('Candidate');
+        firstCol      = h.indexOf('First Name');
+        lastCol       = h.indexOf('Last Name');
+        reqIdCol      = h.indexOf('Requisition ID');
+        recCol        = h.indexOf('Recruiter');
+        startCol      = h.findIndex(c => /^start date/i.test(c));
+        appIdCol      = h.indexOf('Application ID');
+        declReasonCol = h.findIndex(c => /decline.?reason/i.test(c) || /reason.?declin/i.test(c) || /rejection.?reason/i.test(c));
+        lvlCol        = h.findIndex(c => /^level$/i.test(c) || /job.?level/i.test(c) || /^grade$/i.test(c) || /^level anchor$/i.test(c));
+        break;
+      }
+    }
+    console.log('[Offers] headerIdx:', headerIdx, '| statCol:', statCol, '| resCol:', resCol, '| recCol:', recCol);
+    if (headerIdx < 0) { console.error('[Offers] Header row not found — aborting'); return; }
+
+    const isNonFTE = t => /\bintern\b/.test(t) || /apprentice/.test(t) || /temporary/.test(t);
+    const today  = new Date(); today.setHours(0,0,0,0);
+    const q1End  = new Date(2026, 6, 31); // Jul 31 2026
+    const teamRecruiterNames = new Set(RECRUITERS.map(r => r.name));
+
+    let total = 0, may = 0, jun = 0, jul = 0, startedCount = 0, pendingCount = 0;
+    window._acceptedOffersList = [];
+
+    // Per-recruiter live tracking { accepted, extended, byLevel:{L4:{acc,ext}}, declReasons:{reason:count} }
+    const recLive = {};
+    // Quarterly history buckets (this team's own recruiters only) { label → {accepted, extended} }
+    const qBuckets = {};
+
+    let _dbg = 0, _dbgSkipStatus=0, _dbgSkipNonFTE=0, _dbgSkipDate=0, _dbgSkipYr=0;
+    for (const row of rows.slice(headerIdx + 1)) {
+      const status = (row[statCol] || '').trim();
+      if (!status) { _dbgSkipStatus++; continue; }
+      const jobStr   = (row[jobCol] || '').trim();
+      const jobTitle = jobStr.toLowerCase();
+      if (isNonFTE(jobTitle)) { _dbgSkipNonFTE++; continue; }
+      const rd = row[resCol];
+      let mo = 0, yr = 0;
+      if (rd != null && rd !== '') {
+        const s = String(rd);
+        let _m;
+        if ((_m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/))) {
+          mo = +_m[1]; yr = +_m[3];
+        } else if ((_m = s.match(/^(\d{4})-(\d{2})-(\d{2})/))) {
+          mo = +_m[2]; yr = +_m[1];
+        } else {
+          const n = Number(rd);
+          if (!isNaN(n) && n > 40000) {
+            const _d = new Date(Math.round((n - 25569) * 86400000));
+            mo = _d.getUTCMonth()+1; yr = _d.getUTCFullYear();
+          }
+        }
+      }
+      if (_dbg < 3) console.log(`[Offers] row debug v2: status="${status}" rd="${rd}" rdType=${typeof rd} mo=${mo} yr=${yr} job="${jobStr.slice(0,30)}"`);
+      _dbg++;
+      if (!mo || !yr) { _dbgSkipDate++; continue; }
+      if (!(yr === 2025 || yr === 2026)) { _dbgSkipYr++; }
+      // Accept 2025-2026 data for history; 2026 Q1 FY27 for current quarter
+      if (!(yr === 2025 || yr === 2026)) continue;
+
+      const recruiter = recCol >= 0 ? (row[recCol] || '').trim() : '';
+
+      // Quarterly history — this team's own recruiters only
+      const fqLabel = getFQLabel(mo, yr);
+      if (fqLabel && teamRecruiterNames.has(recruiter)) {
+        if (!qBuckets[fqLabel]) qBuckets[fqLabel] = { accepted: 0, extended: 0 };
+        if (status === 'Accepted') qBuckets[fqLabel].accepted++;
+        qBuckets[fqLabel].extended++; // count all extended (Accepted + Declined + etc.)
+      }
+
+      // Current Q1 FY27 data — proceed with existing logic
+      if (!(yr === 2026 && mo >= 5 && mo <= 7)) continue;
+      // Derive level from dedicated column or job title
+      let levelKey = lvlCol >= 0 ? (row[lvlCol] || '').trim() : '';
+      if (!levelKey) {
+        const m = jobStr.match(/\b(L[1-9])\b/i);
+        if (m) levelKey = m[1].toUpperCase();
+      }
+
+      if (recruiter && !recLive[recruiter])
+        recLive[recruiter] = { accepted:0, extended:0, byLevel:{}, declReasons:{} };
+
+      // Team-scoped totals/list — only count offers owned by this team's recruiters
+      if (!teamRecruiterNames.has(recruiter)) continue;
+
+      if (status === 'Accepted') {
+        total++;
+        if (mo === 5) may++; else if (mo === 6) jun++; else jul++;
+        // Count all accepted offers (by accept date, not start date)
+        startedCount = total; // updated each iteration; final value = total accepted
+
+        if (recruiter) {
+          recLive[recruiter].accepted++;
+          recLive[recruiter].extended++;
+          if (levelKey) {
+            if (!recLive[recruiter].byLevel[levelKey]) recLive[recruiter].byLevel[levelKey] = {acc:0,ext:0};
+            recLive[recruiter].byLevel[levelKey].acc++;
+            recLive[recruiter].byLevel[levelKey].ext++;
+          }
+        }
+
+        const candidateName = candCol >= 0
+          ? (row[candCol] || '').trim()
+          : `${firstCol >= 0 ? (row[firstCol] || '').trim() : ''} ${lastCol >= 0 ? (row[lastCol] || '').trim() : ''}`.trim();
+        window._acceptedOffersList.push({
+          candidate: candidateName,
+          reqId:     reqIdCol >= 0 ? (row[reqIdCol] || '').trim() : '',
+          appId:     appIdCol >= 0 ? (row[appIdCol] || '').toString().trim() : '',
+          job:       jobStr,
+          recruiter,
+          resolved:  rd,
+          startDate: startCol >= 0 ? (row[startCol] || '').trim() : '',
+        });
+      } else if (status === 'Rejected' || status === 'Declined') {
+        // Resolved-but-declined offer. "Deprecated"/"Sent" rows are intentionally
+        // excluded here — Deprecated rows are superseded duplicate versions of an
+        // offer that also has a final Accepted/Rejected row (counting them would
+        // double-count the same real offer), and "Sent" offers haven't resolved yet.
+        if (recruiter) {
+          recLive[recruiter].extended++;
+          if (levelKey) {
+            if (!recLive[recruiter].byLevel[levelKey]) recLive[recruiter].byLevel[levelKey] = {acc:0,ext:0};
+            recLive[recruiter].byLevel[levelKey].ext++;
+          }
+          if (declReasonCol >= 0) {
+            const reason = (row[declReasonCol] || '').trim();
+            if (reason) recLive[recruiter].declReasons[reason] = (recLive[recruiter].declReasons[reason] || 0) + 1;
+          }
+        }
+      }
+      // else: Deprecated / Sent / other non-resolved statuses — skip, not a resolved offer
+    }
+
+    // Sort accepted list by date desc
+    const toMs = d => { const p = (d||'').split('/'); return p.length===3 ? new Date(+p[2],+p[0]-1,+p[1]).getTime() : 0; };
+    window._acceptedOffersList.sort((a, b) => toMs(b.resolved) - toMs(a.resolved));
+
+    // Pending starts = accepted offers (this team only) whose start date hasn't
+    // arrived yet — computed from real start dates, not a frozen seed number.
+    const todayMs = today.getTime();
+    pendingCount = window._acceptedOffersList.filter(a => {
+      const ms = toMs(a.startDate);
+      return ms > 0 && ms > todayMs;
+    }).length;
+
+    console.log('[Offers] loop done — total:', total, 'skipStatus:', _dbgSkipStatus, 'skipNonFTE:', _dbgSkipNonFTE, 'skipDate:', _dbgSkipDate, 'skipYr:', _dbgSkipYr, 'passed:', _dbg);
+    // ── Build quarterly history from live data (this team's recruiters only) ────
+    const histLabels = [], histAccepted = [], histExtended = [];
+    for (const ql of HISTORY_QUARTERS) {
+      const b = qBuckets[ql];
+      if (b && (b.accepted > 0 || b.extended > 0)) {
+        histLabels.push(ql);
+        histAccepted.push(b.accepted);
+        histExtended.push(b.extended);
+      }
+    }
+    if (histLabels.length > 0) {
+      console.log('[Hist] Quarterly history:', histLabels, histAccepted, histExtended);
+      const proj0 = computeProjection(FALLBACK.baseOAR, FALLBACK.baseRecruiterCount, FALLBACK.basePPR);
+      renderHistChart(proj0.total, { labels: histLabels, accepted: histAccepted, extended: histExtended });
+    }
+
+    // ── Update FALLBACK with live values ──────────────────────────────
+    if (total > 0) {
+      FALLBACK.acceptedTotal    = total;
+      FALLBACK.acceptedMay      = may;
+      FALLBACK.acceptedJun      = jun;
+      if (startedCount > 0) FALLBACK.hiresQ1ToDate  = startedCount;
+      // Always overwrite — 0 upcoming starts is a real, honest value for a team,
+      // not a "no data" signal, so it shouldn't be skipped in favor of the seed.
+      FALLBACK.acceptedPending = pendingCount;
+      console.log(`[Offers] FALLBACK updated — total:${total} started:${startedCount} pending:${pendingCount}`);
+    }
+
+    // ── Update per-recruiter data from live Offers sheet ─────────────
+    RECRUITERS.forEach(r => {
+      const d = recLive[r.name];
+      if (!d) return;
+      r.accepted = d.accepted;
+      r.extended = d.extended;
+      r.oar      = d.extended > 0 ? Math.round(d.accepted / d.extended * 100) : 0;
+      const newOAL = {};
+      Object.entries(d.byLevel).forEach(([lvl, v]) => {
+        newOAL[lvl] = { oar: v.ext > 0 ? Math.round(v.acc/v.ext*100) : 0, acc: v.acc, ext: v.ext };
+      });
+      if (Object.keys(newOAL).length > 0) r.oarByLevel = newOAL;
+      if (Object.keys(d.declReasons).length > 0)
+        r.declines = Object.entries(d.declReasons).sort((a,b) => b[1]-a[1]);
+    });
+
+    // ── Re-render KPIs + health with live data ────────────────────────
+    // renderOARByLevel/renderDeclineSection/renderRisks/renderInsightStrip all
+    // read from RECRUITERS[].oarByLevel/.declines, which the loop above just
+    // populated from this team's own live Offers rows — re-rendering them here
+    // is what replaces the initial "no data yet" state with real numbers.
+    if (total > 0) {
+      OFFERS_LIVE_LOADED = true;
+      const oar = FALLBACK.baseOAR, rec = FALLBACK.baseRecruiterCount, ppr = FALLBACK.basePPR;
+      const liveProj = computeProjection(oar, rec, ppr);
+      updateKPIs(liveProj);
+      renderGauge(computeHealth(oar, rec, ppr));
+      renderOARByLevel();
+      renderDeclineSection();
+      renderRisks(liveProj);
+      renderInsightStrip(liveProj);
+      try { renderAnalysisNotes(liveProj); } catch(e) { console.warn('renderAnalysisNotes (live):', e); }
+      document.getElementById('kpiAccepted').textContent = total;
+      // Each month gets its own pill so May/Jun/Jul are easy to tell apart at
+      // a glance, instead of concatenating Jun+Jul into one pill's text.
+      document.getElementById('pillStarted').textContent = 'May: ' + may;
+      document.getElementById('pillPending').textContent = 'Jun: ' + jun;
+      const pillJulEl = document.getElementById('pillJul');
+      if (pillJulEl) {
+        if (jul > 0) { pillJulEl.textContent = 'Jul: ' + jul; pillJulEl.style.display = ''; }
+        else { pillJulEl.style.display = 'none'; }
+      }
+    }
+
+    // Re-render funnel with live data in case Chart.js resize event blanked it
+    try { renderFunnel(window._livePipelineData || FALLBACK.pipeline); } catch(e) {}
+
+    renderTeamAcceptedOffers();
+    if (currentRecruiter && document.getElementById('recruiterView').style.display !== 'none') {
+      renderRecruiterView(currentRecruiter);
+    }
+  } catch(e) {
+    console.error('[Offers] fetchAcceptedOffers failed:', e);
+    const el = document.getElementById('updatedTime');
+    if (el) el.innerHTML = `<span style="color:#F45D48">⚠ Data load failed: ${e.message}</span>`;
+  }
+}
+
+// ── Accepted offers table helpers ──────────────────────────────────
+function buildAcceptsTableHTML(accepts, showRecruiter) {
+  if (!accepts || accepts.length === 0) return '';
+  const rowsHtml = accepts.map((a, ai) => {
+    const ghId = window._ghJobIdMap && window._ghJobIdMap[a.reqId];
+    const ghUrl = ghId
+      ? `https://gusto.greenhouse.io/sdash/${ghId}`
+      : (a.appId ? `https://app.greenhouse.io/applications/${a.appId}` : null);
+    const reqCell = ghUrl
+      ? `<a href="${ghUrl}" target="_blank" class="accept-req-link">↗ ${a.reqId || 'GH'}</a>`
+      : `<span class="accept-req-id">${a.reqId || '—'}</span>`;
+    return `<tr>
+      <td><div class="accept-candidate"><span style="color:var(--text2);font-weight:500;font-size:11px;margin-right:6px">${ai + 1}.</span>${a.candidate}</div><div class="accept-job" style="padding-left:18px">${a.job}</div></td>
+      <td>${reqCell}</td>
+      ${showRecruiter ? `<td class="accept-date">${a.recruiter}</td>` : ''}
+      <td class="accept-date">${a.resolved}</td>
+      <td class="accept-start">${a.startDate || '—'}</td>
+    </tr>`;
+  }).join('');
+  const showHint = accepts.length > 4;
+  return `<div class="scroll-table-wrap"><table class="accepts-table">
+    <thead><tr>
+      <th>Candidate</th><th>Req ID</th>
+      ${showRecruiter ? '<th>Recruiter</th>' : ''}
+      <th>Accepted</th><th>Start Date</th>
+    </tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table></div>${showHint ? `<div class="scroll-hint-bar"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 2v6M2 6l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Scroll for more</div>` : ''}`;
+}
+
+// ── Open Headcount Table ──────────────────────────────────────────
+function populateHCFilter(id, values) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All</option>' +
+    [...values].sort().map(v => `<option value="${v}"${v===cur?' selected':''}>${v}</option>`).join('');
+}
+
+function renderOpenHCTable() {
+  const data = window._openReqsData || [];
+  const tbody = document.getElementById('openHCTableBody');
+  const subtitle = document.getElementById('openHCSubtitle');
+  if (!tbody) return;
+
+  // Build filter option sets from full dataset
+  const orgs    = new Set(data.map(r => r.dept).filter(Boolean));
+  const recs    = new Set(data.map(r => r.recruiter).filter(Boolean));
+  const levels  = new Set(data.map(r => r.level).filter(Boolean));
+  const pes     = new Set(data.map(r => r.hiringPE).filter(Boolean));
+  populateHCFilter('hcFilterOrg',   orgs);
+  populateHCFilter('hcFilterRec',   recs);
+  populateHCFilter('hcFilterLevel', levels);
+  populateHCFilter('hcFilterPE',    pes);
+
+  const fOrg   = (document.getElementById('hcFilterOrg')   || {}).value || '';
+  const fRec   = (document.getElementById('hcFilterRec')   || {}).value || '';
+  const fLevel = (document.getElementById('hcFilterLevel') || {}).value || '';
+  const fPE    = (document.getElementById('hcFilterPE')    || {}).value || '';
+
+  const filtered = data.filter(r =>
+    (!fOrg   || r.dept      === fOrg)   &&
+    (!fRec   || r.recruiter === fRec)   &&
+    (!fLevel || r.level     === fLevel) &&
+    (!fPE    || r.hiringPE  === fPE)
+  );
+
+  const PRIORITY_ORDER = { P0:0, P1:1, P2:2, P3:3, '':9 };
+  filtered.sort((a, b) => {
+    const pa = PRIORITY_ORDER[a.priority] ?? 9;
+    const pb = PRIORITY_ORDER[b.priority] ?? 9;
+    if (pa !== pb) return pa - pb;
+    return a.jobName.localeCompare(b.jobName);
+  });
+
+  if (subtitle) subtitle.textContent = `Q1 FY27 · ${filtered.length} open req${filtered.length !== 1 ? 's' : ''}${data.length !== filtered.length ? ' (filtered)' : ''}`;
+
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="9" style="padding:20px 10px;color:var(--text2);text-align:center;font-style:italic;font-size:11px">${data.length ? 'No reqs match current filters' : 'No open reqs found'}</td></tr>`;
+    return;
+  }
+
+  const PRIORITY_COLOR = { P0:'var(--red)', P1:'#e08000', P2:'var(--text2)', P3:'var(--text2)' };
+  const levelShort = l => l.replace('Level ', 'L');
+  const ghLink = r => r.ghJobId
+    ? `<a href="https://app.greenhouse.io/sdash/${r.ghJobId}" target="_blank" style="color:var(--accent);text-decoration:none">${r.reqId}</a>`
+    : r.reqId;
+
+  tbody.innerHTML = filtered.map((r, i) => `
+    <tr style="border-bottom:1px solid var(--border);background:${i%2===0?'transparent':'rgba(128,128,128,.04)'}">
+      <td style="padding:5px 10px;white-space:nowrap;font-family:monospace;font-size:10.5px">${ghLink(r)}</td>
+      <td style="padding:5px 10px;max-width:220px;font-size:11.5px">${r.jobName || '—'}</td>
+      <td style="padding:5px 10px;white-space:nowrap;font-size:10.5px">${r.dept || '—'}</td>
+      <td style="padding:5px 10px;font-size:10.5px;color:var(--text2)">${r.fdsTeam || '—'}</td>
+      <td style="padding:5px 10px;white-space:nowrap">
+        ${r.level ? `<span style="font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:8px;background:var(--accent-faint);color:var(--accent)">${levelShort(r.level)}</span>` : '—'}
+      </td>
+      <td style="padding:5px 10px;white-space:nowrap;font-size:10.5px">${r.recruiter || '—'}</td>
+      <td style="padding:5px 10px;white-space:nowrap;font-size:10.5px">${r.hiringPE || '—'}</td>
+      <td style="padding:5px 10px;white-space:nowrap;text-align:center">
+        ${r.priority ? `<span style="font-size:10.5px;font-weight:700;color:${PRIORITY_COLOR[r.priority]||'var(--text2)'}">${r.priority}</span>` : '—'}
+      </td>
+      <td style="padding:5px 10px;white-space:nowrap;font-size:10.5px;color:var(--text2)">${r.startDate || '—'}</td>
+    </tr>`).join('');
+
+  // Show scroll hint if content overflows
+  const hint = document.getElementById('openHCScrollHint');
+  if (hint) hint.style.display = filtered.length > 5 ? 'flex' : 'none';
+}
+
+function clearHCFilters() {
+  ['hcFilterOrg','hcFilterRec','hcFilterLevel','hcFilterPE'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  renderOpenHCTable();
+}
+
+window._openReqsData = window._openReqsData || [];
+
+function renderTeamAcceptedOffers() {
+  const container = document.getElementById('teamAcceptedOffers');
+  if (!container) return;
+  const accepts = window._acceptedOffersList || [];
+  if (accepts.length === 0) { container.style.display = 'none'; return; }
+  container.style.display = 'block';
+  container.innerHTML = `<div class="card" style="margin-bottom:16px">
+    <div class="card-title">Accepted Offers <span>Q1 FY27 · ${accepts.length} FTE${accepts.length !== 1 ? 's' : ''} accepted</span></div>
+    ${buildAcceptsTableHTML(accepts, true)}
+  </div>`;
+}
+
+// ── Main init ──────────────────────────────────────────────────────
+async function init() {
+  const now = new Date();
+  document.getElementById('updatedTime').textContent =
+    `Updated ${now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true})} · ${now.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;
+
+  // ── Apply team branding from window.TEAM_CONFIG ──────────────────
+  if (_TC.color) document.documentElement.style.setProperty('--org', _TC.color);
+  const $logoSub = document.querySelector('.logo-sub');
+  if ($logoSub) $logoSub.textContent = _TC.name + ' Recruiting';
+  const $eyebrow = document.querySelector('.org-banner-eyebrow');
+  if ($eyebrow) $eyebrow.textContent = _TC.name.toUpperCase() + ' · Q1 FY27';
+  document.title = 'Hiring at a Glance · ' + _TC.name;
+  const $goalVal = document.getElementById('teamGoalValue');
+  if ($goalVal) $goalVal.textContent = HAS_GOAL ? FALLBACK.q1Goal : 'N/A';
+  const $bbGoal = document.getElementById('bbGoal');
+  if ($bbGoal) $bbGoal.textContent = HAS_GOAL ? FALLBACK.q1Goal : 'N/A';
+  // Update FALLBACK counts to reflect team-specific recruiter count
+  FALLBACK.baseRecruiterCount = RECRUITERS.length;
+
+  // ── Render immediately with fallback data so the page is never blocked ──
+  document.getElementById('loadingOverlay').style.display = 'none';
+
+  const oar = FALLBACK.baseOAR, rec = FALLBACK.baseRecruiterCount, ppr = FALLBACK.basePPR;
+  const proj = computeProjection(oar, rec, ppr);
+
+  // Each render is wrapped so a chart failure never blocks tabs from appearing
+  try { renderGauge(computeHealth(oar, rec, ppr)); } catch(e) { console.warn('renderGauge:', e); }
+  try { updateKPIs(proj); } catch(e) { console.warn('updateKPIs:', e); }
+  try { renderProjectionChart(oar, rec, ppr); } catch(e) { console.warn('renderProjectionChart:', e); }
+  // Historical reference card keeps its HTML "Loading…" placeholder until
+  // fetchPipelineHistory() resolves below — no fallback numbers to paint here.
+  try { renderFunnel(FALLBACK.pipeline); } catch(e) { console.warn('renderFunnel:', e); }
+  try { renderHistChart(proj.total); } catch(e) { console.warn('renderHistChart:', e); }
+  try { renderOARByLevel(); } catch(e) { console.warn('renderOARByLevel:', e); }
+  try { renderDeclineSection(); } catch(e) { console.warn('renderDeclineSection:', e); }
+  try { renderRisks(proj); } catch(e) { console.warn('renderRisks:', e); }
+  try { renderInsightStrip(proj); } catch(e) { console.warn('renderInsightStrip:', e); }
+  try { renderAnalysisNotes(proj); } catch(e) { console.warn('renderAnalysisNotes:', e); }
+  try { syncSliderBaselines(); } catch(e) { console.warn('syncSliderBaselines:', e); }
+  try { updateWhatIfDisplay(oar, rec, ppr); } catch(e) { console.warn('updateWhatIfDisplay:', e); }
+
+  document.getElementById('footerText').textContent =
+    `Gusto ${_TC.name} Recruiting · ${daysElapsed}d elapsed (${pctThrough}% of Q1) · ${daysRemaining}d remaining`;
+
+  // Build recruiter tab nav — runs unconditionally
+  initTabNav();
+
+  // ── Live data fetches run in background and update the page when ready ──
+  // Note: there is no dedicated weekly "Pipeline Snapshot" sheet, so the funnel
+  // is populated from a live aggregate of Current Pipeline per Job (see
+  // fetchPipelinePerJob). The Historical Reference card is populated live from
+  // Pipeline History per Dept (see fetchPipelineHistory / renderHistoricalReference) —
+  // nothing on this page is a permanently-frozen hardcoded number anymore.
+
+  // Accepted offers — with visible sign-in prompt if auth fails after 20s
+  fetchAcceptedOffers();
+  setTimeout(() => {
+    if (!OFFERS_LIVE_LOADED) {
+      const el = document.getElementById('updatedTime');
+      if (el) el.innerHTML = `<span style="color:#F45D48;font-weight:600">⚠ Data not loading — <a href="https://accounts.google.com" target="_blank" style="color:#F45D48">sign into your Gusto Google account</a>, then reload this page</span>`;
+    }
+  }, 20000);
+
+  // Pipeline History PTRs (fetch first so they're ready when recruiter tabs open)
+  fetchPipelineHistory();
+
+  // Per-job pipeline (recruiter tabs)
+  fetchPipelinePerJob();
+}
+
+// ── Recruiter data (Q1 FY27 actuals from Greenhouse) ──────────────
+// Each team page sets window.TEAM_RECRUITERS before loading this file.
+// Engineering data below is the fallback used when no override is set.
+const RECRUITERS = window.TEAM_RECRUITERS || [
+  { name:'Angeline Lo',        goal: 5,  accepted: 1, extended: 2,  oar: 50,
+    oarByLevel: { L4:{oar:0,acc:0,ext:1}, L5:{oar:100,acc:1,ext:1} },
+    declines: [['Cash Compensation',1]], reqs: [] },
+  { name:'Ellison DeCastro',   goal: 4,  accepted: 1, extended: 1,  oar: 100,
+    oarByLevel: { L4:{oar:100,acc:1,ext:1} },
+    declines: [], reqs: [] },
+  { name:'Jacob Epstein',      goal: 5,  accepted: 1, extended: 2,  oar: 50,
+    oarByLevel: { L4:{oar:0,acc:0,ext:1}, L5:{oar:100,acc:1,ext:1} },
+    declines: [['Cash Compensation',1]], reqs: [] },
+  { name:'Jeff Dunn',          goal: 6,  accepted: 4, extended: 5,  oar: 80,
+    oarByLevel: { L3:{oar:100,acc:2,ext:2}, L4:{oar:67,acc:2,ext:3} },
+    declines: [['Cash Compensation',1]], reqs: [] },
+  { name:'Jeff Myers',         goal: 5,  accepted: 1, extended: 2,  oar: 50,
+    oarByLevel: { L3:{oar:100,acc:1,ext:1}, L4:{oar:0,acc:0,ext:1} },
+    declines: [['Cash Compensation',1]], reqs: [] },
+  { name:'Kevin Gadd',         goal: 5,  accepted: 2, extended: 3,  oar: 67,
+    oarByLevel: { L3:{oar:100,acc:1,ext:1}, L4:{oar:50,acc:1,ext:2} },
+    declines: [['Cash Compensation',1]], reqs: [] },
+  { name:'Khetsun Tenzin',     goal: 5,  accepted: 3, extended: 4,  oar: 75,
+    oarByLevel: { L4:{oar:67,acc:2,ext:3}, L5:{oar:100,acc:1,ext:1} },
+    declines: [['Equity Compensation',1]], reqs: [] },
+  { name:'Mike Galligan',      goal: 6,  accepted: 3, extended: 5,  oar: 60,
+    oarByLevel: { L3:{oar:100,acc:1,ext:1}, L4:{oar:50,acc:2,ext:4} },
+    declines: [['Cash Compensation',1],['Equity Compensation',1]], reqs: [] },
+  { name:'Nicholas Watson',    goal: 5,  accepted: 3, extended: 3,  oar: 100,
+    oarByLevel: { L3:{oar:100,acc:1,ext:1}, L4:{oar:100,acc:2,ext:2} },
+    declines: [], reqs: [] },
+]; // end Engineering fallback — window.TEAM_RECRUITERS overrides this if set
+
+let recGaugeChart = null;
+let currentRecruiter = null;
+let LIVE_PIPELINE = {};       // keyed by recruiter name, value: [{name,rs,ia,ir,hc,offer}]
+let OFFERS_LIVE_LOADED = false; // true once fetchAcceptedOffers has updated RECRUITERS from sheet
+window._acceptedOffersList = [];  // full accepted offer records
+window._ghJobIdMap = {};          // reqId → Greenhouse job ID
+window._pipelineHistory = {};     // reqId → { assess, f2f, offer, hired, assessToF2f, f2fToOffer, offerToHire }
+
+// ── Pipeline History per Dept fetch (historical reference only) ─────
+// Actual columns in this sheet: Department Name | Application | Assessment |
+// Face to Face | Offer | Hired — one row per real Greenhouse department,
+// lifetime totals for "current + previous year". There is no Requisition ID,
+// no Recruiter Screen/Interview Round/Hiring Committee breakdown, and no
+// week column in this sheet at all, so it cannot feed per-req PTR math or a
+// live weekly trend — window._pipelineHistory (used by reqPT() for the
+// req-level RS→IR/IR→HC/HC→Offer benchmarks) is intentionally left empty;
+// reqPT() already falls back to labeled benchmark rates (marked "*" in the
+// UI) when no per-req history exists, which is the honest state here since
+// no per-req history exists anywhere in this spreadsheet.
+async function fetchPipelineHistory() {
+  try {
+    const txt = await withTimeout(
+      fetchSheetRows('Pipeline History per Dept'),
+      14000
+    );
+    if (!txt || txt.length < 50) { console.warn('[PipelineHistory] empty'); renderHistoricalReference(null, _TC.name); return; }
+    const rows = lines(txt);
+    let hdrIdx = -1, deptCol = -1, appCol = -1, assessCol = -1, f2fCol = -1, offCol = -1, hireCol = -1;
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].includes('Department Name') && rows[i].includes('Application')) {
+        hdrIdx    = i;
+        const h   = rows[i];
+        deptCol   = h.indexOf('Department Name');
+        appCol    = h.indexOf('Application');
+        assessCol = h.indexOf('Assessment');
+        f2fCol    = h.indexOf('Face to Face');
+        offCol    = h.indexOf('Offer');
+        hireCol   = h.indexOf('Hired');
+        break;
+      }
+    }
+    if (hdrIdx < 0) { console.warn('[PipelineHistory] header not found'); renderHistoricalReference(null, _TC.name); return; }
+
+    const deptMap = {};
+    for (const row of rows.slice(hdrIdx + 1)) {
+      const name = (row[deptCol] || '').trim();
+      if (!name) continue;
+      deptMap[name.toLowerCase()] = {
+        name,
+        application: parseInt(row[appCol])   || 0,
+        assessment:  parseInt(row[assessCol]) || 0,
+        faceToFace:  parseInt(row[f2fCol])    || 0,
+        offer:       parseInt(row[offCol])    || 0,
+        hired:       parseInt(row[hireCol])   || 0,
+      };
+    }
+    window._deptHistoricalRef = deptMap;
+    console.log('[PipelineHistory] departments loaded:', Object.keys(deptMap));
+
+    const match = deptMap[(_TC.name || '').toLowerCase()] || null;
+    renderHistoricalReference(match, _TC.name);
+  } catch(e) {
+    console.error('[PipelineHistory] fetch failed:', e);
+    renderHistoricalReference(null, _TC.name);
+  }
+}
+
+// ── Live pipeline per job fetch ────────────────────────────────────
+async function fetchPipelinePerJob() {
+  try {
+    // Fetch both sheets in parallel
+    const [pipeTxt, reqTxt] = await Promise.all([
+      fetchSheetRows('Current Pipeline per Job'),
+      fetchSheetRows('Open Reqs')
+    ]);
+    if (!pipeTxt || !reqTxt) return;
+
+    // ── Parse Pipeline Per Job ──────────────────────────────────
+    const pipeRows = lines(pipeTxt);
+    let pHdr = null, pHdrIdx = -1;
+    for (let i = 0; i < pipeRows.length; i++) {
+      if (pipeRows[i][0] === 'Job Name') { pHdr = pipeRows[i]; pHdrIdx = i; break; }
+    }
+    if (!pHdr) { console.error('[Pipeline] Could not find header row in Pipeline Per Job. First row:', pipeRows[0]); return; }
+    console.log('[Pipeline] Pipeline Per Job headers:', pHdr);
+
+    const pJob   = pHdr.indexOf('Job Name');
+    const pReq   = pHdr.indexOf('Requisition ID');
+    const pRS    = pHdr.indexOf('Recruiter Screen');
+    const pIA    = pHdr.indexOf('Initial Assessment');
+    const pIR    = pHdr.indexOf('Interview Round');
+    const pHC    = pHdr.indexOf('Hiring Committee');
+    const pOffer = pHdr.indexOf('Offer');
+    console.log('[Pipeline] col indices — pReq:', pReq, 'pRS:', pRS, 'pIA:', pIA, 'pIR:', pIR, 'pHC:', pHC, 'pOffer:', pOffer);
+
+    const pipeByReq = {};
+    for (const row of pipeRows.slice(pHdrIdx + 1)) {
+      const reqId = row[pReq];
+      if (!reqId || reqId.startsWith('TEST') || !reqId.trim()) continue;
+      const jobName = row[pJob] || '';
+      // Skip interns/apprentices
+      const jl = jobName.toLowerCase();
+      if (/\bintern\b/.test(jl) || /apprentice/.test(jl)) continue;
+      pipeByReq[reqId.trim()] = {
+        name:  jobName,
+        reqId: reqId.trim(),
+        rs:    parseInt(row[pRS])    || 0,
+        ia:    parseInt(row[pIA])    || 0,
+        ir:    parseInt(row[pIR])    || 0,
+        hc:    parseInt(row[pHC])    || 0,
+        offer: parseInt(row[pOffer]) || 0
+      };
+    }
+
+    // ── Parse Open Reqs for recruiter assignments ───────────────
+    const reqRows2 = lines(reqTxt);
+    let rHdr = null, rHdrIdx = -1;
+    for (let i = 0; i < reqRows2.length; i++) {
+      if (reqRows2[i][0] === 'Job Name') { rHdr = reqRows2[i]; rHdrIdx = i; break; }
+    }
+    if (!rHdr) { console.error('[Pipeline] Could not find header row in Open Reqs. First row:', reqRows2[0]); return; }
+    console.log('[Pipeline] Open Reqs headers:', rHdr);
+
+    const rReqCol      = rHdr.indexOf('Requisition ID');
+    const rRecCol      = rHdr.indexOf('Primary Recruiter');
+    const rStatCol     = rHdr.indexOf('Status (Job)');
+    const rJobIdCol    = rHdr.indexOf('Job ID');
+    const rJobNameCol  = rHdr.indexOf('Job Name');
+    const rDeptCol     = rHdr.indexOf('Department');
+    const rLevelCol    = rHdr.indexOf('Level');
+    const rHiringPECol = rHdr.indexOf('Hiring PE');
+    const rFDSTeamCol  = rHdr.indexOf('FDS Team');
+    const rPriorityCol = rHdr.indexOf('Position Priority');
+    const rStartDateCol= rHdr.indexOf('Recruiting Start Date');
+    console.log('[Pipeline] Open Reqs col indices — rReq:', rReqCol, 'rRec:', rRecCol, 'rStat:', rStatCol, 'rJobId:', rJobIdCol);
+    window._openReqsData = [];
+
+    // Team is determined by who's assigned as Primary Recruiter on the req —
+    // include the team lead too, since leads sometimes carry their own reqs
+    // (e.g. Kebone Moloko/Teresa Waggoner/Jaime Tavarez all show up as Primary
+    // Recruiter on some rows). Without this filter every team's page showed
+    // the exact same org-wide open-headcount list instead of its own reqs.
+    const teamRecruiterNames = new Set([...RECRUITERS.map(r => r.name), _TC.lead].filter(Boolean));
+
+    const liveByRec = {};
+    for (const row of reqRows2.slice(rHdrIdx + 1)) {
+      const reqId    = (row[rReqCol] || '').trim();
+      const recruiter = (row[rRecCol] || '').trim();
+      const status   = row[rStatCol] || '';
+      const ghJobId  = rJobIdCol >= 0 ? (row[rJobIdCol] || '').toString().trim() : '';
+      if (!reqId) continue;
+      // Always build ghJobId map for ALL reqs (including closed) so accepted offers get links
+      if (ghJobId) window._ghJobIdMap[reqId] = ghJobId;
+      // Capture this team's own open reqs for the headcount table (exclude
+      // E-reqs, regardless of pipeline entry) — scoped to this team's own
+      // recruiters/lead, not the whole org.
+      if (status === 'Open' && !reqId.startsWith('E') && teamRecruiterNames.has(recruiter)) {
+        window._openReqsData.push({
+          reqId,
+          recruiter,
+          ghJobId,
+          jobName:   (row[rJobNameCol]   || '').trim(),
+          dept:      (row[rDeptCol]      || '').trim(),
+          level:     (row[rLevelCol]     || '').trim(),
+          hiringPE:  (row[rHiringPECol]  || '').trim(),
+          fdsTeam:   (row[rFDSTeamCol]   || '').trim(),
+          priority:  (row[rPriorityCol]  || '').trim(),
+          startDate: (row[rStartDateCol] || '').trim(),
+        });
+      }
+      // Only add to live pipeline for open reqs with a known recruiter and pipeline entry
+      if (status !== 'Open' || !recruiter) continue;
+      const pipe = pipeByReq[reqId];
+      if (!pipe) continue;
+      pipe.ghJobId = ghJobId;
+      if (!liveByRec[recruiter]) liveByRec[recruiter] = [];
+      liveByRec[recruiter].push(pipe);
+    }
+
+    console.log('[Pipeline] liveByRec keys:', Object.keys(liveByRec));
+    console.log('[Pipeline] sample LIVE_PIPELINE:', JSON.stringify(liveByRec).slice(0, 400));
+    LIVE_PIPELINE = liveByRec;
+
+    // ── Build a live funnel snapshot from Current Pipeline per Job ──────
+    // There's no historical weekly sheet, so this aggregates *current* stage
+    // counts across this team's open reqs (via LIVE_PIPELINE) into the same
+    // shape renderFunnel() expects — gives a real, live funnel instead of the
+    // frozen FALLBACK.pipeline numbers. (The separate Historical Reference
+    // card is populated from Pipeline History per Dept — see fetchPipelineHistory.)
+    const agg = { rs:0, ia:0, ir:0, hc:0, offer:0 };
+    let openJobsCount = 0;
+    RECRUITERS.forEach(r => {
+      const reqs = LIVE_PIPELINE[r.name] || [];
+      openJobsCount += reqs.length;
+      reqs.forEach(req => {
+        agg.rs    += req.rs    || 0;
+        agg.ia    += req.ia    || 0;
+        agg.ir    += req.ir    || 0;
+        agg.hc    += req.hc    || 0;
+        agg.offer += req.offer || 0;
+      });
+    });
+    const nowLabel = `Week of ${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;
+    const liveSnapshot = {
+      weeks: [nowLabel], rs: [agg.rs], ia: [agg.ia], ir: [agg.ir], hc: [agg.hc], offer: [agg.offer], openJobs: [openJobsCount]
+    };
+    window._livePipelineData = liveSnapshot;
+    try { renderFunnel(liveSnapshot); } catch(e) { console.warn('[Pipeline] renderFunnel from live snapshot failed:', e); }
+    // Health score (pipeline-depth component) and risk cards read the last
+    // offer/IR counts via currentOfferCount()/currentIRCount() — now that a
+    // live snapshot exists, re-render both so they reflect it instead of the
+    // FALLBACK seed values.
+    try {
+      const oar0 = FALLBACK.baseOAR, rec0 = FALLBACK.baseRecruiterCount, ppr0 = FALLBACK.basePPR;
+      const proj0 = computeProjection(oar0, rec0, ppr0);
+      renderGauge(computeHealth(oar0, rec0, ppr0));
+      renderRisks(proj0);
+      renderInsightStrip(proj0);
+      renderAnalysisNotes(proj0);
+    } catch(e) { console.warn('[Pipeline] re-render gauge/risks from live snapshot failed:', e); }
+    const footerEl = document.getElementById('footerText');
+    if (footerEl) footerEl.textContent =
+      `🟢 Live · ${_TC.name} Recruiting · ${daysElapsed}d elapsed (${pctThrough}% of Q1) · ${daysRemaining}d remaining`;
+
+    // Render open headcount table
+    renderOpenHCTable();
+
+    // Re-render accepted offers table now that _ghJobIdMap is populated
+    renderTeamAcceptedOffers();
+
+    // Re-render the current recruiter tab if one is open
+    if (currentRecruiter && document.getElementById('recruiterView').style.display !== 'none') {
+      try { renderRecruiterView(currentRecruiter); } catch(e) { console.error('renderRecruiterView after pipeline:', e); }
+    }
+  } catch(e) { console.error('[Pipeline] fetchPipelinePerJob failed:', e); }
+}
+
+// ── Pipeline data refresh ──────────────────────────────────────────
+async function refreshPipelineData(btnEl) {
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = '↺ Refreshing…'; }
+  _appsScriptCache = null;
+  _appsScriptFetch = null;
+  window._pipelineHistory = {};
+  LIVE_PIPELINE = {};
+  try {
+    await Promise.all([fetchPipelineHistory(), fetchPipelinePerJob()]);
+  } catch(e) { console.error('[Refresh] failed:', e); }
+  if (btnEl) { btnEl.disabled = false; btnEl.textContent = '↺ Refresh'; }
+  if (currentRecruiter) try { renderRecruiterView(currentRecruiter); } catch(e) {}
+}
+
+// ── Tab navigation ─────────────────────────────────────────────────
+function initTabNav() {
+  const nav = document.getElementById('tabNav');
+  nav.innerHTML =
+    `<a href="../" class="tab-btn" style="text-decoration:none">← All Teams</a>` +
+    `<div class="tab-sep"></div>` +
+    `<button class="tab-btn active" onclick="switchTab('team',this)">Team Overview</button>` +
+    `<div class="tab-sep"></div>` +
+    RECRUITERS.map((r, i) => `<button class="tab-btn" onclick="switchTab(${i},this)">${r.name}</button>`).join('');
+}
+
+function switchTab(nameOrIdx, el) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  const teamView = document.getElementById('teamView');
+  const recView  = document.getElementById('recruiterView');
+  if (nameOrIdx === 'team') {
+    teamView.style.display = 'block';
+    recView.style.display  = 'none';
+  } else {
+    teamView.style.display = 'none';
+    recView.style.display  = 'block';
+    currentRecruiter = RECRUITERS[nameOrIdx];
+    try { renderRecruiterView(currentRecruiter); } catch(e) { console.error('renderRecruiterView:', e); document.getElementById('recruiterContent').innerHTML = `<div class="container" style="padding:32px;color:var(--red)">Error rendering tab: ${e.message}</div>`; }
+  }
+}
+
+// ── Per-recruiter health & projection ─────────────────────────────
+function recruiterHealth(r) {
+  // Use projected total (accepted + pipeline) for goal score — reflects where they'll end up
+  const projected = recruiterProjected(r);
+  const goalScore = Math.min(50, 50 * Math.min(1, projected / r.goal));
+  const oarScore  = Math.min(30, 30 * (r.oar / 95));
+  const pipeScore = 20;
+  return Math.round(goalScore + oarScore + pipeScore);
+}
+// ── Global PTR helpers (used by recruiterProjected + renderRecruiterView) ──
+const BENCH3 = { rsToIR: 0.18, irToHC: 0.50, hcToOff: 0.85 };
+
+function reqPT(req) {
+  const h = (window._pipelineHistory || {})[req.reqId] || {};
+  const rsToIR  = (h.rsToIR  != null && h.rs  >= 5 && h.ir  >= 1) ? h.rsToIR  : BENCH3.rsToIR;
+  const irToHC  = (h.irToHC  != null && h.ir  >= 2 && h.hc  >= 1) ? h.irToHC  : BENCH3.irToHC;
+  const hcToOff = (h.hcToOff != null && h.hc  >= 1 && h.offer >= 1) ? h.hcToOff : BENCH3.hcToOff;
+  return {
+    rsToIR, irToHC, hcToOff,
+    rsToOff: rsToIR * irToHC * hcToOff,
+    src: {
+      rsToIR:  (h.rsToIR  != null && h.rs  >= 5 && h.ir  >= 1) ? 'hist' : 'bench',
+      irToHC:  (h.irToHC  != null && h.ir  >= 2 && h.hc  >= 1) ? 'hist' : 'bench',
+      hcToOff: (h.hcToOff != null && h.hc  >= 1 && h.offer >= 1) ? 'hist' : 'bench',
+    }
+  };
+}
+
+function projectedOffersFromPipe(req) {
+  const pt = reqPT(req);
+  return (
+    ((req.rs||0) + (req.ia||0)) * pt.rsToIR * pt.irToHC * pt.hcToOff +
+    (req.ir    || 0) * pt.irToHC * pt.hcToOff +
+    (req.hc    || 0) * pt.hcToOff +
+    (req.offer || 0)
+  );
+}
+
+function recruiterProjected(r) {
+  // If live pipeline data is loaded, use funnel-based projection (candidates × PTRs)
+  // This matches what the pipeline per req section shows and is more accurate.
+  const liveReqs = LIVE_PIPELINE[r.name];
+  if (liveReqs && liveReqs.length > 0) {
+    const pipeTotal = liveReqs.reduce((s, req) => s + projectedOffersFromPipe(req), 0);
+    return parseFloat((r.accepted + pipeTotal).toFixed(1));
+  }
+  // Fallback: pace-based extrapolation when pipeline data isn't loaded yet
+  if (daysElapsed <= 0) return r.accepted;
+  const monthlyPace = r.accepted / (daysElapsed / 30);
+  return r.accepted + Math.round(monthlyPace * monthsLeft);
+}
+
+// ── Predictive analysis action items ──────────────────────────────
+// Pipeline History columns (updated):
+//   Application Review → Recruiter Screen → Interview Round → Hiring Committee → Offer
+// Live pipeline stages: RS, IA, IR, HC, Offer
+//   RS+IA → use rsToIR rate (both in pre-interview screening)
+//   IR    → use irToHC * hcToOff
+//   HC    → use hcToOff
+//   Offer → count as projected offer (multiply by OAR for acceptance)
+function buildPredictiveInsight(r, liveReqs) {
+  const needed = Math.max(0, r.goal - r.accepted);
+  // Bench PTRs (fallbacks only when no historical data)
+  const B = { rsToIR: 0.18, irToHC: 0.50, hcToOff: 0.85 };
+  // Bench RS→Offer = 0.18 * 0.50 * 0.85 ≈ 7.65% → ~13 RS per offer
+
+  if (needed === 0) {
+    return `<div class="pred-item"><span class="pred-icon">🎉</span><div class="pred-text"><strong>Goal achieved!</strong> ${r.accepted}/${r.goal} hires confirmed — focus on smooth onboarding for pending starts.</div></div>`;
+  }
+
+  const reqs    = liveReqs || [];
+  const hist    = window._pipelineHistory || {};
+  const hasHist = Object.keys(hist).length > 0;
+  const oar     = r.oar ? r.oar / 100 : 0.90;
+
+  // ── Step 1: Fleet rate from reqs that have actually produced offers ──
+  // Only reqs with offer ≥ 1 AND rs ≥ 5 have meaningful RS→Offer data.
+  // Using offer/rs directly avoids compounding errors across 3 multiplied rates.
+  const offerReqs = reqs.filter(q => (hist[q.reqId]?.offer || 0) >= 1 && (hist[q.reqId]?.rs || 0) >= 5);
+  const fleetRS   = offerReqs.reduce((s, q) => s + hist[q.reqId].rs,    0);
+  const fleetOff  = offerReqs.reduce((s, q) => s + hist[q.reqId].offer, 0);
+  // Fleet RS→Offer rate (e.g. 33 offers from 520 RS = 6.3%)
+  const fleetRsToOff  = fleetRS > 0 && fleetOff > 0 ? fleetOff / fleetRS : B.rsToIR * B.irToHC * B.hcToOff;
+  const rsPerOffer    = fleetRsToOff > 0 ? Math.round(1 / fleetRsToOff) : 14; // e.g. ~16 RS per offer
+  // Fleet IR→HC and HC→Offer for mid/late-stage projections
+  const fleetHistIR   = offerReqs.reduce((s, q) => s + hist[q.reqId].ir,    0);
+  const fleetHistHC   = offerReqs.reduce((s, q) => s + hist[q.reqId].hc,    0);
+  const fleetIrToHC   = fleetHistIR  > 0 ? fleetHistHC  / fleetHistIR  : B.irToHC;
+  const fleetHcToOff  = fleetHistHC  > 0 ? fleetOff     / fleetHistHC  : B.hcToOff;
+
+  // ── Step 2: Per-req projection using historical rates where available ──
+  let totalProjOffers = 0;
+  const reqBreakdowns = [];
+
+  for (const req of reqs) {
+    const h = hist[req.reqId] || {};
+
+    // RS→Offer: use req's direct historical rate if it has produced offers; else fleet avg
+    const reqRsToOff = (h.offer >= 1 && h.rs >= 5) ? h.rsToOff : fleetRsToOff;
+    // IR→HC: use req's rate if ≥2 IR; else fleet
+    const irToHC  = (h.irToHC  != null && h.ir >= 2) ? h.irToHC  : fleetIrToHC;
+    // HC→Offer: use req's rate if ≥1 HC and ≥1 offer (avoid 0% from reqs with no offers yet)
+    const hcToOff = (h.hcToOff != null && h.hc >= 1 && h.offer >= 1) ? h.hcToOff : fleetHcToOff;
+
+    const rs  = req.rs    || 0;
+    const ia  = req.ia    || 0;
+    const ir  = req.ir    || 0;
+    const hc  = req.hc    || 0;
+    const off = req.offer || 0;
+
+    const proj = off * oar
+               + hc  * hcToOff
+               + ir  * irToHC * hcToOff
+               + (rs + ia) * reqRsToOff;
+    totalProjOffers += proj;
+
+    const hasData = (h.offer >= 1 && h.rs >= 5);
+    reqBreakdowns.push({
+      name: req.name, reqId: req.reqId, proj,
+      reqRsToOff, irToHC, hcToOff, hasData, h,
+      rs, ia, ir, hc, off
+    });
+  }
+
+  const pipeGap   = Math.max(0, needed - totalProjOffers);
+  const addlRS    = Math.ceil(pipeGap * rsPerOffer);
+  const totalRS   = Math.ceil(needed * rsPerOffer); // total RS to hit goal from scratch
+  const dataLabel = offerReqs.length > 0
+    ? `~${rsPerOffer} RS per offer (${fleetOff} offers from ${fleetRS} RS across ${offerReqs.length} req${offerReqs.length !== 1 ? 's' : ''})`
+    : `~${rsPerOffer} RS per offer (benchmark)`;
+
+  const items = [];
+
+  // 1 — Sourcing gap
+  if (pipeGap > 0.3) {
+    items.push({ icon: '🎯', badge: 'HIGH PRIORITY', badgeCls: 'pred-badge-high',
+      text: `<strong>Source ~${addlRS} more Recruiter Screen${addlRS !== 1 ? 's' : ''} to close the gap</strong> — current pipeline projects <strong>${totalProjOffers.toFixed(1)}</strong> more offers vs. <strong>${needed}</strong> needed. <span style="color:var(--text2)">${dataLabel}.</span>` });
+  } else {
+    items.push({ icon: '✅', badge: 'ON TRACK', badgeCls: 'pred-badge-ok',
+      text: `<strong>Pipeline projects ${totalProjOffers.toFixed(1)} more offers</strong> — covers the ${needed}-hire gap. Focus on protecting late-stage quality. <span style="color:var(--text2)">${dataLabel}.</span>` });
+  }
+
+  // 2 — RS needed to hit full goal (context item)
+  if (needed > 0 && rsPerOffer > 0) {
+    items.push({ icon: '📊', badge: 'CONTEXT', badgeCls: 'pred-badge-action',
+      text: `<strong>${rsPerOffer} RS needed per offer</strong> based on your req mix — to make ${needed} more hire${needed !== 1 ? 's' : ''} entirely from new RS, you'd need ~${totalRS} more screens. Late-stage candidates (HC/IR) reduce that need significantly.` });
+  }
+
+  // 3 — Weakest IR→HC per req with live IR candidates
+  const weakIrToHC = reqBreakdowns
+    .filter(q => q.hasData && q.h.ir >= 3 && q.irToHC < fleetIrToHC * 0.65 && (q.ir + q.hc) > 0)
+    .sort((a, b) => a.irToHC - b.irToHC)[0];
+  if (weakIrToHC) {
+    items.push({ icon: '📉', badge: 'CONVERT', badgeCls: 'pred-badge-warn',
+      text: `<strong>${weakIrToHC.name}: ${Math.round(weakIrToHC.irToHC*100)}% IR→HC</strong> — below your ${Math.round(fleetIrToHC*100)}% fleet avg. ${weakIrToHC.ir} mid-funnel candidates stalling. Audit debrief speed and panel availability.` });
+  }
+
+  // 4 — Weakest HC→Offer per req with live HC candidates
+  const weakHcToOff = reqBreakdowns
+    .filter(q => q.hasData && q.h.hc >= 2 && q.hcToOff < fleetHcToOff * 0.70 && q.hc > 0)
+    .sort((a, b) => a.hcToOff - b.hcToOff)[0];
+  if (weakHcToOff) {
+    items.push({ icon: '💰', badge: 'COMP RISK', badgeCls: 'pred-badge-warn',
+      text: `<strong>${weakHcToOff.name}: ${Math.round(weakHcToOff.hcToOff*100)}% HC→Offer</strong> — below ${Math.round(fleetHcToOff*100)}% fleet avg. ${weakHcToOff.hc} HC candidate${weakHcToOff.hc !== 1 ? 's' : ''} at risk. Validate comp band with HM before panel debrief.` });
+  }
+
+  // 5 — Quick win: HC candidates
+  const totHC = reqs.reduce((s, q) => s + (q.hc || 0), 0);
+  if (totHC > 0) {
+    items.push({ icon: '⚡', badge: 'QUICK WIN', badgeCls: 'pred-badge-action',
+      text: `<strong>Push ${totHC} HC-stage candidate${totHC !== 1 ? 's' : ''} to offer</strong> — highest-probability close. Prep comp approvals and offer letters now.` });
+  }
+
+  // 6 — Advance IR candidates
+  const totIR = reqs.reduce((s, q) => s + (q.ir || 0), 0);
+  if (totIR >= 2) {
+    items.push({ icon: '→', badge: 'ACTION', badgeCls: 'pred-badge-action',
+      text: `<strong>Advance ${totIR} IR candidate${totIR !== 1 ? 's' : ''} to HC</strong> — schedule debriefs and panels this week.` });
+  }
+
+  // 7 — OAR risk
+  if (r.oar < 75 && r.extended > 0) {
+    const lost = r.extended - r.accepted;
+    items.push({ icon: '⚠️', badge: 'RISK', badgeCls: 'pred-badge-high',
+      text: `<strong>Fix ${r.oar}% OAR</strong> — ${lost} offer${lost !== 1 ? 's' : ''} declined. Validate comp with HM before next offer.` });
+  }
+
+  // 8 — Deadline
+  if (daysRemaining <= 50 && needed > 0) {
+    items.push({ icon: '📅', badge: 'DEADLINE', badgeCls: 'pred-badge-warn',
+      text: `<strong>${daysRemaining} days left in Q1</strong> — factor 2–3 week offer-to-start lag. RS started this week won't convert before mid-July without fast-tracking.` });
+  }
+
+  return items.map(it => `
+    <div class="pred-item">
+      <span class="pred-icon">${it.icon}</span>
+      <div class="pred-text">${it.text}</div>
+      <span class="pred-badge ${it.badgeCls}">${it.badge}</span>
+    </div>`).join('');
+}
