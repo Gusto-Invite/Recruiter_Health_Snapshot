@@ -373,3 +373,404 @@ function renderHistChart(projected, liveHist) {
     if (note) note.innerHTML = `<strong>🟢 Live · ${_TC.name} only:</strong> ${lastLabel} saw ${lastHist} accepted of ${lastExt} extended (${lastOAR}% OAR). ${trend} vs prior quarter (${prevHist} accepted, ${prevOAR}% OAR). Q1 FY27 projected: ${projected}.`;
   }
 }
+
+// ── Team-wide offer stats, aggregated from RECRUITERS ───────────────
+// RECRUITERS is scoped to whichever team's page is loaded (window.TEAM_RECRUITERS
+// set in each team's index.html), and each recruiter's accepted/extended/oarByLevel/
+// declines fields are populated live from the Offers sheet in fetchAcceptedOffers()
+// — filtered to that same team's recruiters. So this aggregate is always this team's
+// own real numbers, never another team's.
+function aggregateTeamStats() {
+  let totalAcc = 0, totalExt = 0;
+  const byLevel = {};   // lvl -> {acc, ext}
+  const reasons = {};   // reason -> count
+  RECRUITERS.forEach(r => {
+    totalAcc += r.accepted || 0;
+    totalExt += r.extended || 0;
+    if (r.oarByLevel) {
+      Object.entries(r.oarByLevel).forEach(([lvl, v]) => {
+        if (!byLevel[lvl]) byLevel[lvl] = { acc: 0, ext: 0 };
+        byLevel[lvl].acc += v.acc || 0;
+        byLevel[lvl].ext += v.ext || 0;
+      });
+    }
+    if (r.declines && r.declines.length) {
+      r.declines.forEach(([reason, count]) => {
+        reasons[reason] = (reasons[reason] || 0) + count;
+      });
+    }
+  });
+  const levels = {};
+  Object.entries(byLevel).forEach(([lvl, v]) => {
+    levels[lvl] = { oar: v.ext > 0 ? Math.round(v.acc / v.ext * 100) : 0, accepted: v.acc, extended: v.ext };
+  });
+  const reasonList = Object.entries(reasons).sort((a, b) => b[1] - a[1]);
+  const totalDeclines = reasonList.reduce((s, [, c]) => s + c, 0);
+  return {
+    totalAcc, totalExt,
+    oarPct: totalExt > 0 ? Math.round(totalAcc / totalExt * 100) : null,
+    levels, reasonList, totalDeclines
+  };
+}
+
+// ── Decline reasons (this team's own recruiters, real reasons only) ──
+function renderDeclineSection() {
+  const stats = aggregateTeamStats();
+  const container = document.getElementById('l4DeclineContainer');
+  if (!container) return;
+  const card = container.closest('.card');
+  const cardTitleEl = card ? card.querySelector('.card-title') : null;
+  const titleSpan   = cardTitleEl ? cardTitleEl.querySelector('span') : null;
+  const callout     = card ? card.querySelector('.insight-callout') : null;
+  if (cardTitleEl && cardTitleEl.firstChild) cardTitleEl.firstChild.textContent = `${_TC.name} Offer Decline Reasons `;
+  if (titleSpan) titleSpan.textContent = `Q1 · ${stats.totalDeclines} total decline${stats.totalDeclines !== 1 ? 's' : ''}${stats.oarPct != null ? ` · OAR ${stats.oarPct}%` : ''}`;
+
+  const reasonColors = {
+    'Cash Compensation':       '#F45D48',
+    'Equity Compensation':     '#e67e22',
+    'Role Misalignment':       '#9b59b6',
+    'Duplicate Application':   '#3d4f7a',
+    'Moving to headcount req': '#3d4f7a',
+    'Timeline Misalignment':   '#00B094',
+    "Gusto's Product/Industry":'#F5A623',
+    'Level Misalignment':      '#3d4f7a',
+    'Other':                   '#4a5568'
+  };
+
+  if (stats.totalDeclines === 0) {
+    container.innerHTML = `<div style="padding:20px 0;text-align:center;color:var(--green);font-size:12px;font-weight:600">✓ No Q1 declines for ${_TC.name}</div>`;
+    if (callout) callout.style.display = 'none';
+  } else {
+    if (callout) {
+      callout.style.display = 'block';
+      const top = stats.reasonList[0];
+      const topPct = Math.round(top[1] / stats.totalDeclines * 100);
+      const breakdown = stats.reasonList.map(([r, c]) => `${r} ${Math.round(c / stats.totalDeclines * 100)}% (${c} of ${stats.totalDeclines})`).join('; ');
+      callout.innerHTML = `<strong>⚠️ ${topPct}% of Q1 ${_TC.name} declines are "${top[0]}".</strong> ${breakdown}.`;
+    }
+    const maxCount = stats.reasonList[0][1];
+    let html = '';
+    stats.reasonList.forEach(([reason, count]) => {
+      const pct = Math.round(count / stats.totalDeclines * 100);
+      const barW = Math.round(count / maxCount * 100);
+      const col = reasonColors[reason] || '#4a5568';
+      html += `
+        <div class="decline-bar-row">
+          <div class="decline-label">${reason}</div>
+          <div class="decline-bar-wrap">
+            <div class="decline-bar" style="width:${barW}%;background:${col}">${pct}%</div>
+          </div>
+          <div class="decline-count" style="color:${col}">${count}</div>
+        </div>`;
+    });
+    container.innerHTML = html;
+  }
+
+  // Second chart: reasons broken out by recruiter (real, team-scoped). Greenhouse's
+  // Level Anchor field is populated for well under 5% of offers, so a reliable
+  // by-level split isn't available from source data — by-recruiter is.
+  const chartCanvas = document.getElementById('declineCompChart');
+  const chartCard   = chartCanvas ? chartCanvas.closest('.card') : null;
+  const chartTitleEl = chartCard ? chartCard.querySelector('.card-title') : null;
+  const chartTitleSpan = chartTitleEl ? chartTitleEl.querySelector('span') : null;
+  if (chartTitleEl && chartTitleEl.firstChild) chartTitleEl.firstChild.textContent = 'Decline Reasons by Recruiter ';
+  if (chartTitleSpan) chartTitleSpan.textContent = 'Q1 (May–Jul 2026) · excl. interns';
+
+  if (declineCompChart) { declineCompChart.destroy(); declineCompChart = null; }
+  const recNames = RECRUITERS.filter(r => r.declines && r.declines.length).map(r => r.name);
+  if (recNames.length === 0 || !chartCanvas) return;
+  const topReasons = stats.reasonList.slice(0, 3).map(([r]) => r);
+  const palette = ['#F45D48', '#e67e22', '#9b59b6'];
+  const datasets = topReasons.map((reason, ri) => ({
+    label: reason,
+    data: recNames.map(name => {
+      const r = RECRUITERS.find(x => x.name === name);
+      const found = (r?.declines || []).find(([rr]) => rr === reason);
+      return found ? found[1] : 0;
+    }),
+    backgroundColor: palette[ri % palette.length] + 'cc',
+    borderColor: palette[ri % palette.length],
+    borderWidth: 1,
+    borderRadius: 4
+  }));
+  declineCompChart = new Chart(chartCanvas, {
+    type: 'bar',
+    data: { labels: recNames, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { boxWidth: 11, padding: 10, font: { size: 10 } } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}` } }
+      },
+      scales: {
+        x: { stacked: false, grid: { color: 'rgba(0,0,0,0.05)' } },
+        y: { stacked: false, grid: { color: 'rgba(0,0,0,0.05)' }, beginAtZero: true, ticks: { stepSize: 1 } }
+      }
+    }
+  });
+}
+
+// ── OAR by level (this team's own recruiters) ────────────────────────
+// Falls back to the team's real overall OAR when Greenhouse's Level Anchor
+// field isn't populated for this team's offers (the common case), rather than
+// fabricating a level split that doesn't exist in the source data.
+function renderOARByLevel() {
+  const stats = aggregateTeamStats();
+  const container = document.getElementById('oarByLevel');
+  if (!container) return;
+
+  if (stats.totalExt === 0) {
+    container.innerHTML = `<div style="padding:16px 4px;text-align:center;color:var(--text2);font-size:12px;font-style:italic">No offers extended for ${_TC.name} yet this quarter.</div>`;
+    return;
+  }
+
+  const levelEntries = Object.entries(stats.levels).sort(([a], [b]) => a.localeCompare(b));
+  let html = '';
+  if (levelEntries.length > 0) {
+    levelEntries.forEach(([lvl, d]) => {
+      const col = d.oar >= 85 ? '#00B094' : d.oar >= 75 ? '#F5A623' : '#F45D48';
+      const rejected = d.extended - d.accepted;
+      html += `
+        <div class="oar-item">
+          <div class="oar-item-label">${lvl}</div>
+          <div class="oar-item-bar-wrap">
+            <div class="oar-item-bar" style="width:${d.oar}%;background:${col}">${d.oar}%</div>
+          </div>
+          <div class="oar-item-val" style="color:${col}">${d.oar}%</div>
+          <div style="font-size:10px;color:var(--text2);white-space:nowrap;flex-shrink:0;width:80px;text-align:right">${d.accepted}/${d.extended} <span style="color:#F45D48">(−${rejected})</span></div>
+        </div>`;
+    });
+  } else {
+    const col = stats.oarPct >= 85 ? '#00B094' : stats.oarPct >= 75 ? '#F5A623' : '#F45D48';
+    const rejected = stats.totalExt - stats.totalAcc;
+    html = `
+      <div class="oar-item">
+        <div class="oar-item-label">All</div>
+        <div class="oar-item-bar-wrap">
+          <div class="oar-item-bar" style="width:${stats.oarPct}%;background:${col}">${stats.oarPct}%</div>
+        </div>
+        <div class="oar-item-val" style="color:${col}">${stats.oarPct}%</div>
+        <div style="font-size:10px;color:var(--text2);white-space:nowrap;flex-shrink:0;width:80px;text-align:right">${stats.totalAcc}/${stats.totalExt} <span style="color:#F45D48">(−${rejected})</span></div>
+      </div>
+      <div style="font-size:10px;color:var(--text2);font-style:italic;margin-top:6px">Level-by-level split isn't available — Greenhouse's Level Anchor field is empty for nearly all ${_TC.name} offers this quarter, so this shows overall team OAR instead.</div>`;
+  }
+  container.innerHTML = html;
+}
+
+// ── Risk flags (this team's own goal, OAR, and pipeline depth) ───────
+const RISK_LEVEL_RANK = { 'risk-high': 0, 'risk-mid': 1, 'risk-low': 2 };
+
+function computeRisks(proj) {
+  const gap = proj.gap;
+  const stats = aggregateTeamStats();
+  const offerCount = currentOfferCount();
+  const latestIR = currentIRCount();
+  const pending = FALLBACK.acceptedPending || 0;
+  return [
+    !HAS_GOAL ? {
+      // No Q1 goal set yet for this team — an informational card instead of
+      // a fabricated gap-to-goal risk (which would need FALLBACK.q1Goal).
+      level: 'risk-low',
+      icon: 'ℹ️',
+      title: `${FALLBACK.acceptedTotal} FTE Accepted This Quarter`,
+      desc: `No Q1 hiring goal has been set yet for ${_TC.name} — tracking accepted offers and pace only.`
+    } : {
+      level: gap >= 15 ? 'risk-high' : gap >= 8 ? 'risk-mid' : 'risk-low',
+      icon: gap >= 15 ? '🔴' : gap >= 8 ? '🟡' : '🟢',
+      title: gap > 0 ? `${gap}-Hire FTE Gap to Goal` : 'FTE Goal Within Reach',
+      desc: gap > 0
+        ? `At current FTE pace (${proj.baseMonthly.toFixed(1)}/mo), Q1 projects to ~${proj.total} vs goal of ${FALLBACK.q1Goal}. Need ${proj.paceNeeded.toFixed(1)}/mo.`
+        : `Projected to meet or exceed the ${FALLBACK.q1Goal}-hire Q1 FTE goal.`
+    },
+    stats.totalExt > 0 ? {
+      level: stats.oarPct < 70 ? 'risk-high' : stats.oarPct < 85 ? 'risk-mid' : 'risk-low',
+      icon: stats.oarPct < 70 ? '🔴' : stats.oarPct < 85 ? '🟡' : '🟢',
+      title: `${_TC.name} OAR at ${stats.oarPct}%`,
+      desc: stats.totalDeclines > 0
+        ? `${stats.totalAcc}/${stats.totalExt} offers accepted this quarter. Top decline reason: "${stats.reasonList[0][0]}" (${stats.reasonList[0][1]} of ${stats.totalDeclines}).`
+        : `${stats.totalAcc}/${stats.totalExt} offers accepted this quarter — no declines recorded yet.`
+    } : {
+      level: 'risk-mid',
+      icon: '⚪',
+      title: `No offers extended yet for ${_TC.name}`,
+      desc: `Team OAR will populate once offers are extended and resolved in Greenhouse this quarter.`
+    },
+    {
+      level: offerCount < 6 ? 'risk-high' : offerCount < 10 ? 'risk-mid' : 'risk-low',
+      icon: offerCount < 6 ? '🔴' : offerCount < 10 ? '🟡' : '🟢',
+      title: `${offerCount} Active Offer${offerCount !== 1 ? 's' : ''}${pending > 0 ? ` + ${pending} Upcoming Start${pending !== 1 ? 's' : ''}` : ''}`,
+      desc: `${offerCount} in Offer stage${pending > 0 ? `, ${pending} accepted offer${pending !== 1 ? 's' : ''} with future start dates (through Jul 31)` : ''}. IR pipeline (${latestIR}) feeding offer stage.`
+    }
+  ];
+}
+
+function renderRisks(proj) {
+  const risks = computeRisks(proj);
+  const el = document.getElementById('risksContainer');
+  if (!el) return;
+  el.innerHTML = risks.map(r =>
+    `<div class="risk-card ${r.level}"><div class="risk-icon">${r.icon}</div><div><div class="risk-title">${r.title}</div><div class="risk-desc">${r.desc}</div></div></div>`
+  ).join('');
+}
+
+// ── Insight strip (top of team overview) — real per-team risk + win ──
+function renderInsightStrip(proj) {
+  const deadlineEl = document.getElementById('insightDeadlineText');
+  if (deadlineEl) deadlineEl.textContent = `${daysRemaining} days left in Q1`;
+
+  const riskTextEl = document.getElementById('insightRiskText');
+  const riskSubEl  = document.getElementById('insightRiskSub');
+  if (riskTextEl) {
+    const risks = computeRisks(proj);
+    const worst = risks.slice().sort((a, b) => (RISK_LEVEL_RANK[a.level] ?? 9) - (RISK_LEVEL_RANK[b.level] ?? 9))[0];
+    riskTextEl.textContent = worst.title;
+    if (riskSubEl) riskSubEl.textContent = worst.desc;
+  }
+
+  const winTextEl = document.getElementById('insightWinText');
+  const winSubEl  = document.getElementById('insightWinSub');
+  if (winTextEl) {
+    const perfect = RECRUITERS.filter(r => (r.extended || 0) > 0 && r.oar === 100).map(r => r.name);
+    const stats = aggregateTeamStats();
+    if (perfect.length > 0) {
+      winTextEl.textContent = perfect.length === 1 ? `${perfect[0]} at 100% OAR` : `${perfect.length} recruiters at 100% OAR`;
+      if (winSubEl) winSubEl.textContent = `${perfect.join(', ')} — no Q1 declines.`;
+    } else if (stats.oarPct != null && stats.oarPct >= 90) {
+      winTextEl.textContent = `${_TC.name} OAR at ${stats.oarPct}%`;
+      if (winSubEl) winSubEl.textContent = `${stats.totalAcc}/${stats.totalExt} offers accepted this quarter — strong close rate.`;
+    } else if (HAS_GOAL && proj.gap <= 0) {
+      winTextEl.textContent = 'On pace to hit Q1 goal';
+      if (winSubEl) winSubEl.textContent = `Projected to meet or exceed the ${FALLBACK.q1Goal}-hire goal at current pace.`;
+    } else {
+      winTextEl.textContent = HAS_GOAL
+        ? `${FALLBACK.acceptedTotal}/${FALLBACK.q1Goal} FTE hires confirmed`
+        : `${FALLBACK.acceptedTotal} FTE hires confirmed`;
+      if (winSubEl) winSubEl.textContent = 'No stand-out win flagged yet this quarter — check back as more offers resolve.';
+    }
+  }
+}
+
+// ── Analysis notes (Projection / Funnel / OAR-by-level / Decline pattern) ──
+// All four were static HTML strings quoting Engineering's own Q1 numbers,
+// copy-pasted onto every team's page with no element ID — so every team
+// (GTM, CX, SpecTech, Foundation, Engineering) showed the identical "~43
+// FTE, 11-hire gap, L4 at 56%, 18 closes/month" text regardless of that
+// team's actual data. Wiring them here makes each one read from this
+// team's own live-computed proj/stats instead.
+function renderAnalysisNotes(proj) {
+  // Projection card
+  const projNote = document.getElementById('projectionNote');
+  if (projNote) {
+    if (!HAS_GOAL) {
+      projNote.className = 'analysis-note';
+      projNote.innerHTML = `<strong>No Q1 goal set:</strong> Base scenario projects ~${proj.total} FTE for ${_TC.name} this quarter. Set a Q1 goal to see gap-to-goal tracking here.`;
+    } else if (proj.gap > 0) {
+      projNote.className = 'analysis-note risk';
+      projNote.innerHTML = `<strong>⚠ Risk:</strong> Base scenario projects ~${proj.total} FTE — a ${proj.gap}-hire gap to goal. Closing the gap requires accelerating offer volume significantly.`;
+    } else {
+      projNote.className = 'analysis-note';
+      projNote.innerHTML = `<strong>✅ On track:</strong> Base scenario projects ~${proj.total} FTE, at or above the ${FALLBACK.q1Goal}-hire goal.`;
+    }
+  }
+
+  // Funnel bottleneck note
+  const funnelNote = document.getElementById('funnelNote');
+  if (funnelNote) {
+    const offerCount = currentOfferCount();
+    const irCount = currentIRCount();
+    const irMin = Math.min(...FALLBACK.pipeline.ir);
+    const paceBit = HAS_GOAL ? ` against a pace requiring ~${proj.paceNeeded.toFixed(1)} closes/month` : '';
+    funnelNote.innerHTML = `<strong>${offerCount < 6 ? '⚠ Bottleneck' : 'Funnel'}:</strong> ${offerCount} active offer${offerCount !== 1 ? 's' : ''}${paceBit}. ` +
+      (irCount <= irMin ? `IR pool is at a multi-week low.` : `IR pipeline currently at ${irCount}.`);
+  }
+
+  // OAR-by-level note — only meaningful when a level split actually exists;
+  // otherwise the container above already explains why it's showing overall
+  // OAR instead, so leave this one hidden rather than duplicate/contradict it.
+  const oarNote = document.getElementById('oarByLevelNote');
+  if (oarNote) {
+    const stats = aggregateTeamStats();
+    const levelEntries = Object.entries(stats.levels).filter(([, d]) => d.extended > 0);
+    if (levelEntries.length === 0) {
+      oarNote.style.display = 'none';
+    } else {
+      oarNote.style.display = '';
+      const [worstLvl, worstD] = levelEntries.reduce((min, cur) => cur[1].oar < min[1].oar ? cur : min);
+      if (worstD.oar >= 85) {
+        oarNote.className = 'analysis-note';
+        oarNote.innerHTML = `<strong>On track:</strong> Every level is at or above 85% OAR — lowest is ${worstLvl} at ${worstD.oar}%.`;
+      } else {
+        oarNote.className = 'analysis-note risk';
+        oarNote.innerHTML = `<strong>⚠ Critical — ${worstLvl}:</strong> ${worstD.oar}% OAR (${worstD.accepted}/${worstD.extended}) is the lowest of any level for ${_TC.name} this quarter. This is the highest-leverage level to address.`;
+      }
+    }
+  }
+
+  // Decline pattern note — this chart is broken out by recruiter (not level,
+  // per the comment in renderDeclineSection above), so describe the pattern
+  // in those same terms instead of the old level-based Engineering text.
+  const patternNote = document.getElementById('declinePatternNote');
+  if (patternNote) {
+    const stats = aggregateTeamStats();
+    if (stats.totalDeclines === 0) {
+      patternNote.innerHTML = `<strong>Pattern:</strong> No declines recorded for ${_TC.name} in Q1.`;
+    } else {
+      const recruitersWithDeclines = RECRUITERS.filter(r => r.declines && r.declines.length).length;
+      const [topReason, topCount] = stats.reasonList[0];
+      const topPct = Math.round(topCount / stats.totalDeclines * 100);
+      patternNote.innerHTML = `<strong>Pattern:</strong> "${topReason}" accounts for ${topPct}% (${topCount} of ${stats.totalDeclines}) of Q1 ${_TC.name} declines, spread across ${recruitersWithDeclines} recruiter${recruitersWithDeclines !== 1 ? 's' : ''}.`;
+    }
+  }
+}
+
+// ── Slider baselines ──────────────────────────────────────────────
+// Syncs each what-if slider's starting position/label to this team's actual
+// FALLBACK/RECRUITERS-derived baseline instead of a number typed into the
+// shared HTML template once (85% / 9 / 1.44 for every team regardless of
+// that team's real recruiter count). Run once at init().
+function syncSliderBaselines() {
+  const oarPct = Math.round(FALLBACK.baseOAR * 100);
+  const rec = FALLBACK.baseRecruiterCount;
+  const ppr = FALLBACK.basePPR;
+
+  const oarSlider = document.getElementById('oarSlider');
+  if (oarSlider) oarSlider.value = oarPct;
+  const oarCurrentLabel = document.getElementById('oarCurrentLabel');
+  if (oarCurrentLabel) oarCurrentLabel.textContent = oarPct + '%';
+  const oarSliderVal = document.getElementById('oarSliderVal');
+  if (oarSliderVal) oarSliderVal.textContent = oarPct + '%';
+
+  const recSlider = document.getElementById('recSlider');
+  if (recSlider) recSlider.value = rec;
+  const recCurrentLabel = document.getElementById('recCurrentLabel');
+  if (recCurrentLabel) recCurrentLabel.textContent = rec;
+  const recSliderVal = document.getElementById('recSliderVal');
+  if (recSliderVal) recSliderVal.textContent = rec;
+
+  const pprSlider = document.getElementById('pprSlider');
+  if (pprSlider) pprSlider.value = ppr;
+  const pprCurrentLabel = document.getElementById('pprCurrentLabel');
+  if (pprCurrentLabel) pprCurrentLabel.textContent = ppr.toFixed(2);
+  const pprSliderVal = document.getElementById('pprSliderVal');
+  if (pprSliderVal) pprSliderVal.textContent = ppr.toFixed(2);
+}
+
+// ── Update KPIs ────────────────────────────────────────────────────
+function updateKPIs(proj) {
+  const goal = FALLBACK.q1Goal;
+  const accepted = FALLBACK.acceptedTotal;
+  const started  = FALLBACK.hiresQ1ToDate;
+  const pending  = FALLBACK.acceptedPending;
+
+  // ── Team status card header ──────────────────────────────────────
+  document.getElementById('teamDaysHeader').textContent = daysRemaining;
+  document.getElementById('teamPctHeader').textContent = pctThrough;
+  if (HAS_GOAL) {
+    const stillLeft0 = Math.max(0, goal - accepted);
+    document.getElementById('teamGoalSummary').textContent =
+      stillLeft0 === 0 ? `✓ Goal covered by accepted offers` : `${accepted} accepted · ${stillLeft0} more needed by Jul 31`;
+  } else {
+    document.getElementById('teamGoalSummary').textContent = `${accepted} accepted this quarter · no Q1 goal set yet`;
+  }
+  const remaining0 = proj.total - started;
+  document.getElementById('teamProjBreakdown').textContent = `${started} accepted + ~${Math.max(0,remaining0)} projected = ${proj.total}`;
