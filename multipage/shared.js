@@ -1,603 +1,651 @@
-// ── Recruiter view renderer ────────────────────────────────────────
-function renderRecruiterView(r) {
-  currentRecruiter = r;
-  const health    = recruiterHealth(r);
-  const hColor    = healthColor(health);
-  const hLabel    = healthLabel(health);
-  const projected = recruiterProjected(r);
-  const gap       = Math.max(0, r.goal - projected);
-  const pct       = Math.round(r.accepted / r.goal * 100);
-  const barColor  = pct >= 80 ? '#00B094' : pct >= 50 ? '#F5A623' : '#F45D48';
-  const projColor = projected >= r.goal ? '#00B094' : projected >= r.goal * 0.75 ? '#F5A623' : '#F45D48';
+// ── Team Config (overridden by each team page) ──────────────────────
+const _TC = window.TEAM_CONFIG || {
+  key: 'Engineering', name: 'Engineering', color: '#F45D48',
+  lead: 'Jaime Tavarez', goal: 46
+};
 
-  // OAR by level
-  let oarHtml = '';
-  const levels = Object.keys(r.oarByLevel);
-  if (levels.length === 0) {
-    oarHtml = `<div style="color:var(--text2);font-size:12px;padding:8px 0;font-style:italic">No offer data in Q1 yet</div>`;
-  } else {
-    levels.forEach(lvl => {
-      const d = r.oarByLevel[lvl];
-      const col = d.oar >= 85 ? '#00B094' : d.oar >= 75 ? '#F5A623' : '#F45D48';
-      const rej = d.ext - d.acc;
-      oarHtml += `
-        <div class="oar-item">
-          <div class="oar-item-label">${lvl}</div>
-          <div class="oar-item-bar-wrap"><div class="oar-item-bar" style="width:${d.oar}%;background:${col}">${d.oar}%</div></div>
-          <div class="oar-item-val" style="color:${col}">${d.oar}%</div>
-          <div style="font-size:10px;color:var(--text2);white-space:nowrap;flex-shrink:0;width:80px;text-align:right">${d.acc}/${d.ext} <span style="color:#F45D48">(−${rej})</span></div>
-        </div>`;
-    });
+const TOOL = 'mcp__c61042c2-2fb3-4e2e-888c-dce52a6a8c86__fetch';
+const PIPELINE_SHEET = '1jFTGmMfMgsnkCbPPhgwZDPtbNM0-wIM1Ee-FLvTOZVU';
+
+let currentScenario = 'base';
+let projectionChart = null, gaugeChart = null, histChart = null, declineCompChart = null;
+
+const FALLBACK = {
+  // _TC.goal is explicitly null for teams whose Q1 hiring goal isn't known yet
+  // (GTM, CX, SpecTech, Foundation) — HAS_GOAL below gates every goal-relative
+  // calculation/display so those teams show "no goal set" instead of a
+  // fabricated number, rather than falling back to Engineering's 46.
+  q1Goal: _TC.goal === null ? null : (_TC.goal || 46),
+  q1Predicted: 27,           // FTE offers accepted in Q1 (by resolved/acceptance date, excl. interns & apprentices)
+  hiresQ1ToDate: 29,         // FTE starts through Jun 9 (excl. interns/apprentices, used for pace projection)
+  acceptedTotal: 27,         // offers accepted in Q1 (resolved date in May–Jul 2026, excl. interns & apprentices)
+  acceptedMay: 23,           // accepted in May
+  acceptedJun: 4,            // accepted in June so far
+  acceptedPending: 14,       // not yet started (future start dates)
+  baseRecruiterCount: 9,
+  basePPR: 1.44,
+  baseOAR: 0.85,
+  // oarByLevel / declineReasons intentionally removed — team-wide OAR and decline
+  // reasons are now computed live per team by aggregateTeamStats() from each
+  // team's own RECRUITERS data (see renderOARByLevel/renderDeclineSection/renderRisks),
+  // instead of a single hardcoded Engineering-only breakdown shared by every page.
+  pipeline: {
+    weeks: ['Apr 13','Apr 20','Apr 27','May 4','May 11','May 18','May 25','Jun 1','Jun 8'],
+    rs:    [273,260,263,221,242,225,199,262,250],
+    ia:    [54,43,41,41,50,44,44,45,46],
+    ir:    [69,62,51,31,22,27,33,34,23],
+    hc:    [8,13,13,10,10,4,3,3,4],
+    offer: [9,9,11,12,13,12,6,9,7],
+    openJobs: [89,76,73,69,51,47,55,60,65]
   }
+};
 
-  // Decline reasons
-  let declHtml = '';
-  if (r.declines.length === 0) {
-    declHtml = `<div style="padding:20px 0;text-align:center;color:var(--green);font-size:12px;font-weight:600">✓ No Q1 declines</div>`;
-  } else {
-    const maxD = r.declines[0][1];
-    const reasonColors = {'Cash Compensation':'#F45D48','Equity Compensation':'#e67e22','Role Misalignment':'#9b59b6','Timeline Misalignment':'#00B094',"Gusto's Product/Industry":'#F5A623'};
-    r.declines.forEach(([reason, count]) => {
-      const barW = Math.round(count / maxD * 100);
-      const col = reasonColors[reason] || '#4a5568';
-      declHtml += `
-        <div class="decline-bar-row">
-          <div class="decline-label">${reason}</div>
-          <div class="decline-bar-wrap"><div class="decline-bar" style="width:${barW}%;background:${col}">${count}</div></div>
-          <div class="decline-count" style="color:${col}">${count}</div>
-        </div>`;
-    });
-  }
+// True only for teams with a known Q1 hiring goal (currently just Engineering).
+// Every goal-relative calculation/display below checks this instead of
+// assuming a number, so GTM/CX/SpecTech/Foundation show honest "no goal set"
+// text rather than NaN/Infinity or a fabricated percentage.
+const HAS_GOAL = FALLBACK.q1Goal != null;
 
-  function fmtPct(v, src) {
-    const s = src === 'hist' ? '' : '<span style="color:var(--text2);font-style:italic">*</span>';
-    return `${Math.round(v*100)}%${s}`;
-  }
+// ── Date math ──────────────────────────────────────────────────────
+const today      = new Date();
+const qStart     = new Date('2026-05-01');
+const qEnd       = new Date('2026-07-31');
+const daysElapsed   = Math.max(0, Math.floor((today - qStart) / 86400000));
+const daysTotal     = Math.floor((qEnd - qStart) / 86400000) + 1;
+const daysRemaining = Math.max(0, Math.floor((qEnd - today) / 86400000));
+const pctThrough    = (daysElapsed / daysTotal * 100).toFixed(1);
+const monthsLeft    = daysRemaining / 30.0;
 
-  const hiresNeeded  = Math.max(0, r.goal - r.accepted);
-  const liveReqs     = LIVE_PIPELINE[r.name];
-  const isLive       = liveReqs && liveReqs.length > 0;
+// ── Helpers ────────────────────────────────────────────────────────
+function extractSheetContent(r) {
+  if (!r || r.isError) return '';
+  if (r.structuredContent?.content) return r.structuredContent.content;
+  const arr = Array.isArray(r.content) ? r.content : [];
+  const blk = arr.find(b => b?.type === 'text');
+  if (blk?.text) { try { return JSON.parse(blk.text)?.content || blk.text; } catch { return blk.text; } }
+  if (typeof r.content === 'string') { try { return JSON.parse(r.content)?.content || r.content; } catch { return r.content; } }
+  return '';
+}
 
-  const pipeOnlyTotal = (liveReqs || r.reqs).reduce((s, req) => s + projectedOffersFromPipe(req), 0);
-  const totalProjAll  = pipeOnlyTotal; // pipeline-only (no accepted) — used for gap/insight calcs
-  const remainingGap  = Math.max(0, hiresNeeded - totalProjAll);
+function lines(txt) {
+  return txt.split('\n').map(l => l.split('\t').map(c => c.trim())).filter(r => r.some(c => c.length));
+}
 
-  const STAGE_COLORS = {
-    rs:    { bg: 'rgba(244,93,72,0.12)',   text: '#D03A28',  label: 'RS' },
-    ia:    { bg: 'rgba(107,94,248,0.12)',  text: '#5548D9',  label: 'IA' },
-    ir:    { bg: 'rgba(245,166,35,0.15)',  text: '#C47A0A',  label: 'IR' },
-    hc:    { bg: 'rgba(0,176,148,0.12)',   text: '#00876E',  label: 'HC' },
-    offer: { bg: 'rgba(244,93,72,0.18)',   text: '#D03A28',  label: 'Offer' },
+function parsePipelineSnapshot(txt) {
+  const data = { weeks:[], rs:[], ia:[], ir:[], hc:[], offer:[], openJobs:[] };
+  const rows = lines(txt);
+  let headerRow = null;
+
+  // Week header cells may be text ("Week of Apr 13") OR date strings ("4/13/2026")
+  // — the latter happens when Apps Script getValues() returns Date objects which
+  //   JSON.stringify converts to ISO strings that arrayToTSV formats as M/D/YYYY
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const isDateStr = s => /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s);
+  const isWeekCell = s => s.startsWith('Week of') || isDateStr(s);
+  const toWeekLabel = s => {
+    if (s.startsWith('Week of')) return s;
+    const [m, d] = s.split('/');
+    return `Week of ${MONTHS[parseInt(m)-1]} ${parseInt(d)}`;
   };
 
-  const reqRows = isLive
-    ? liveReqs.map((req, qi) => {
-        const pt           = reqPT(req);
-        const rsPO         = 1 / Math.max(0.001, pt.rsToOff);
-        const proj         = projectedOffersFromPipe(req);
-        const insightId    = `ins_${r.name.replace(/\W/g,'')}_${qi}`;
-        const allHist      = Object.values(pt.src).every(s => s === 'hist');
-        const addlRSNeeded = proj >= 1 ? 0 : Math.ceil((1 - proj) * rsPO);
-        const projColor    = proj >= 0.85 ? 'var(--green)' : proj >= 0.4 ? 'var(--yellow)' : 'var(--red)';
-        const projBg       = proj >= 0.85 ? 'rgba(0,176,148,0.1)' : proj >= 0.4 ? 'rgba(245,166,35,0.12)' : 'rgba(208,58,40,0.1)';
+  for (const r of rows) {
+    if (r.some(c => isWeekCell(c))) { headerRow = r; break; }
+  }
+  if (!headerRow) return null;
 
-        const stagesHtml = Object.entries(STAGE_COLORS).map(([key, sc], i) => {
-          const val = req[key] || 0;
-          const arrow = i < 4 ? `<span class="req-stage-arrow">→</span>` : '';
-          return `
-            <div class="req-stage-badge">
-              <div class="req-stage-label">${sc.label}</div>
-              <div class="req-stage-val" style="background:${val > 0 ? sc.bg : 'rgba(0,0,0,0.04)'};color:${val > 0 ? sc.text : 'var(--text2)'}">
-                ${val > 0 ? val : '—'}
-              </div>
-            </div>
-            ${arrow}`;
-        }).join('');
+  const weekCols = headerRow.slice(1).filter(c => isWeekCell(c));
+  data.weeks = weekCols.map(toWeekLabel);
 
-        return `
-        <div class="req-pill" onclick="toggleInsight('${insightId}')">
-          <div class="req-pill-row">
-            <div style="flex:1;min-width:0">
-              <div class="req-pill-name"><span style="color:var(--text2);font-weight:500;margin-right:6px;font-size:11px">${qi + 1}.</span>${req.name}</div>
-              <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
-                <span class="req-pill-id">${req.reqId || ''}</span>
-                ${req.ghJobId ? `<a href="https://gusto.greenhouse.io/sdash/${req.ghJobId}" target="_blank" class="req-gh-link" onclick="event.stopPropagation()">↗ GH</a>` : ''}
-              </div>
-            </div>
-            <div class="req-pill-stages">${stagesHtml}</div>
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;margin-left:10px">
-              <div class="req-proj-badge" style="background:${projBg};color:${projColor}">~${proj.toFixed(1)} proj.</div>
-              <button class="req-insight-btn" onclick="event.stopPropagation();toggleInsight('${insightId}')">Insights ▶</button>
-            </div>
-          </div>
-          <div id="${insightId}" class="req-pill-insight">
-            <div style="font-size:10px;font-weight:700;color:var(--purple);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">
-              Pipeline Insight <span style="font-weight:400;text-transform:none;color:${allHist?'var(--green)':'var(--text2)'}"> · ${allHist?'rates from history':'some benchmarks*'}</span>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-              <div>
-                <div style="font-size:10px;color:var(--text2);margin-bottom:3px">RS to generate 1 offer</div>
-                <div style="font-size:13px;font-weight:700;color:var(--text)">~${Math.ceil(rsPO)} screens</div>
-                <div style="font-size:10px;color:var(--text2);margin-top:5px;line-height:1.6">
-                  RS→IR <strong>${fmtPct(pt.rsToIR,pt.src.rsToIR)}</strong> · IR→HC <strong>${fmtPct(pt.irToHC,pt.src.irToHC)}</strong> · HC→Offer <strong>${fmtPct(pt.hcToOff,pt.src.hcToOff)}</strong>
-                </div>
-                <div style="font-size:10px;color:var(--text2);margin-top:5px">
-                  ${proj >= 1 ? `<span style="color:var(--green)">✓ Pipeline projects ≥1 offer already</span>`
-                    : addlRSNeeded > 0 ? `Need <strong style="color:var(--accent)">${addlRSNeeded} more RS</strong> to project 1 offer`
-                    : `~${proj.toFixed(2)} projected — nearly there`}
-                </div>
-                ${!allHist ? `<div style="font-size:10px;color:var(--text2);font-style:italic;margin-top:3px">* using benchmark rate (insufficient history)</div>` : ''}
-              </div>
-              <div>
-                <div style="font-size:10px;color:var(--text2);margin-bottom:3px">Recruiter gap</div>
-                <div style="font-size:11px;color:var(--text);line-height:1.6">
-                  ${remainingGap > 0
-                    ? `Needs <strong>${hiresNeeded}</strong> more · All reqs project <strong>${totalProjAll.toFixed(1)}</strong> · <span style="color:var(--red)">~${remainingGap.toFixed(1)} short</span><br>→ <strong style="color:var(--accent)">~${Math.ceil(remainingGap * rsPO)} more RS</strong> needed to close`
-                    : `<span style="color:var(--green)">✓ Pipeline on track to meet goal</span>`}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>`;
-      }).join('')
-    : (r.reqs.length > 0
-        ? r.reqs.map((req, i) => `
-            <tr>
-              <td><input class="req-name-input" value="${(req.name||'').replace(/"/g,'&quot;')}" placeholder="Req name" onchange="updateReqData(${i},'name',this.value)"></td>
-              <td><input class="req-input" type="number" min="0" value="${req.rs||''}"    placeholder="–" onchange="updateReqData(${i},'rs',this.value)"></td>
-              <td><input class="req-input" type="number" min="0" value="${req.ia||''}"    placeholder="–" onchange="updateReqData(${i},'ia',this.value)"></td>
-              <td><input class="req-input" type="number" min="0" value="${req.ir||''}"    placeholder="–" onchange="updateReqData(${i},'ir',this.value)"></td>
-              <td><input class="req-input" type="number" min="0" value="${req.hc||''}"    placeholder="–" onchange="updateReqData(${i},'hc',this.value)"></td>
-              <td><input class="req-input" type="number" min="0" value="${req.offer||''}" placeholder="–" onchange="updateReqData(${i},'offer',this.value)"></td>
-              <td><button onclick="removeReq(${i})" style="border:none;background:none;color:var(--text2);cursor:pointer;font-size:16px;line-height:1" title="Remove">×</button></td>
-            </tr>`).join('')
-        : `<tr><td colspan="7" style="color:var(--text2);font-size:11px;padding:14px 0;text-align:center;font-style:italic">No open reqs found — data loading or no active reqs assigned</td></tr>`);
-
-  // OAR analysis note
-  const oarNote = r.oar < 70
-    ? `<div class="analysis-note risk"><strong>⚠ At risk:</strong> ${r.oar}% OAR — below 75% threshold. ${r.declines.map(([n,c]) => `${c} ${n.toLowerCase()} decline${c>1?'s':''}`).join(', ')}.${r.declines.length ? ' Comp is the driver.' : ''}</div>`
-    : r.oar >= 90
-      ? `<div class="analysis-note ok"><strong>✓ Healthy OAR:</strong> ${r.oar}% — no comp declines to address in Q1.</div>`
-      : `<div class="analysis-note"><strong>Watch:</strong> ${r.oar}% OAR. Monitor for comp-driven declines as more offers go out.</div>`;
-
-  document.getElementById('recruiterContent').innerHTML = `
-    <div class="rec-header">
-      <div class="rec-name">${r.name}</div>
-      <div class="rec-badge" style="background:${hColor}22;color:${hColor}">${hLabel}</div>
-      <div style="font-size:11px;color:var(--text2);margin-left:auto">Q1 FY27 · May–Jul 2026 · <strong>${daysRemaining}</strong>d remaining</div>
-    </div>
-
-    <div class="rec-status-card">
-      <!-- Header: Health Score -->
-      <div class="rec-status-header">
-        <div class="rec-health-block">
-          <div class="rec-health-score-big" style="color:${hColor}">${health}</div>
-          <div class="rec-health-info">
-            <div class="rec-health-tag">Health Score
-              <button class="health-info-btn" tabindex="0" aria-label="Health score methodology">i
-                <div class="health-tooltip">Weighted score (0–100):<br>
-                  <strong>50pts</strong> Projected attainment (accepted + pipeline conversion ÷ goal)<br>
-                  <strong>30pts</strong> OAR vs. 95% benchmark<br>
-                  <strong>20pts</strong> Pipeline depth (base credit)<br>
-                  <br>≥80 = On Track · 65–79 = At Risk · 50–64 = Needs Attention · &lt;50 = Critical
-                </div>
-              </button>
-            </div>
-            <div class="rec-health-desc-text" style="color:${hColor}">${hLabel}</div>
-          </div>
-        </div>
-        <div class="rec-health-divider"></div>
-        <div class="rec-health-note">
-          <strong>${daysRemaining}</strong> days left in Q1 &nbsp;·&nbsp; ${pctThrough}% elapsed<br>
-          Need <strong>${Math.max(0,r.goal-r.accepted)}</strong> more accepted offers by Jul 31
-        </div>
-        <div style="flex:1"></div>
-        <canvas id="recGaugeCanvas" style="display:none"></canvas>
-      </div>
-      <!-- Metric blocks -->
-      <div class="rec-status-metrics">
-        <!-- Q1 Goal -->
-        <div class="rec-metric-block" style="border-top: 3px solid ${barColor}">
-          <div class="rec-metric-label">Q1 Goal</div>
-          <div class="rec-metric-value" style="color:var(--text)">${r.goal}</div>
-          <div class="rec-metric-sub">FTE hires by Jul 31</div>
-          <div class="goal-bar-wrap" style="margin-top:6px"><div class="goal-bar" style="width:${OFFERS_LIVE_LOADED ? Math.min(100,pct) : 0}%;background:${barColor}"></div></div>
-          <div class="goal-pct" style="color:${barColor};margin-top:3px">${OFFERS_LIVE_LOADED ? pct+'% confirmed' : '– pending data'}</div>
-          <div class="rec-metric-note">${OFFERS_LIVE_LOADED ? `${r.accepted} accepted · ${Math.max(0,r.goal-r.accepted)} more needed` : '– accepted · loading…'}</div>
-        </div>
-        <!-- Accepted Offers -->
-        <div class="rec-metric-block" style="border-top: 3px solid var(--green)">
-          <div class="rec-metric-label">Accepted Offers</div>
-          <div class="rec-metric-value" style="color:var(--green)">${OFFERS_LIVE_LOADED ? r.accepted : '–'}</div>
-          <div class="rec-metric-sub">Q1 · FTE only · excl. interns</div>
-          <div class="rec-metric-note">${OFFERS_LIVE_LOADED ? `${r.accepted} accepted of ${r.extended} extended` : 'Loading from Greenhouse…'}</div>
-        </div>
-        <!-- OAR -->
-        ${OFFERS_LIVE_LOADED ? `
-        <div class="rec-metric-block" style="border-top: 3px solid ${r.oar >= 90 ? 'var(--green)' : r.oar >= 75 ? 'var(--yellow)' : 'var(--red)'}">
-          <div class="rec-metric-label">OAR</div>
-          <div class="rec-metric-value" style="color:${r.oar >= 90 ? 'var(--green)' : r.oar >= 75 ? 'var(--yellow)' : 'var(--red)'}">${r.oar}%</div>
-          <div class="rec-metric-sub">Offer Acceptance Rate</div>
-          <div class="rec-metric-note">${r.accepted}/${r.extended} offers accepted</div>
-          ${r.oar < 75 ? `<div class="analysis-note risk" style="margin-top:6px"><strong>⚠</strong> Below 75% threshold</div>` : r.oar >= 90 ? `<div class="analysis-note ok" style="margin-top:6px"><strong>✓</strong> Strong close rate</div>` : `<div class="analysis-note" style="margin-top:6px;font-size:10px;color:var(--yellow)">Watch — monitor for comp declines</div>`}
-        </div>` : `
-        <div class="rec-metric-block" style="border-top: 3px solid var(--border)">
-          <div class="rec-metric-label">OAR</div>
-          <div class="rec-metric-value" style="color:var(--text2)">–</div>
-          <div class="rec-metric-sub">Pending live data</div>
-          <div class="analysis-note" style="margin-top:6px;font-size:10px">Loading from Greenhouse…</div>
-        </div>`}
-        <!-- FTE Projected -->
-        <div class="rec-metric-block" style="border-top: 3px solid ${OFFERS_LIVE_LOADED ? projColor : 'var(--border)'}">
-          <div class="rec-metric-label">FTE Projected</div>
-          <div class="rec-metric-value" style="color:${OFFERS_LIVE_LOADED ? projColor : 'var(--text2)'}">${OFFERS_LIVE_LOADED ? projected.toFixed(1) : '–'}</div>
-          <div class="rec-metric-sub">${OFFERS_LIVE_LOADED ? (gap > 0 ? `<span class="kpi-badge badge-red">−${gap.toFixed(1)} vs goal</span>` : `<span class="kpi-badge badge-green">On target</span>`) : 'Pending accepted data'}</div>
-          <div class="rec-metric-note">${OFFERS_LIVE_LOADED ? `${r.accepted} accepted + ${pipeOnlyTotal.toFixed(1)} pipeline · ${monthsLeft.toFixed(1)} mo left` : 'Waiting for Offers sheet…'}</div>
-          ${OFFERS_LIVE_LOADED ? (projected < r.goal ? `<div class="analysis-note risk" style="margin-top:6px"><strong>⚠</strong> Need to accelerate by ${(r.goal - projected).toFixed(1)} hire${(r.goal - projected) !== 1?'s':''}</div>` : `<div class="analysis-note ok" style="margin-top:6px"><strong>✓</strong> On pace to hit goal</div>`) : ''}
-        </div>
-      </div>
-    </div>
-
-    <div class="pred-wrap">
-      <div class="pred-note">
-        <div class="pred-title">📋 What It Takes to Hit Goal <div class="pred-divider"></div></div>
-        <div class="pred-items">${buildPredictiveInsight(r, liveReqs)}</div>
-      </div>
-    </div>
-
-    ${(function() {
-      const myAccepts = (window._acceptedOffersList || []).filter(a => a.recruiter === r.name);
-      if (myAccepts.length === 0) return '';
-      return `<div class="rec-section" style="margin-bottom:16px">
-        <div class="rec-section-title">Accepted Offers <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--green)">· ${myAccepts.length} FTE${myAccepts.length !== 1 ? 's' : ''}</span></div>
-        ${buildAcceptsTableHTML(myAccepts, false)}
-      </div>`;
-    })()}
-    <div class="rec-mid">
-      <div class="rec-section">
-        <div class="rec-section-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-          <span>Pipeline per Req ${isLive ? `<span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--green)">· 🟢 live</span>` : `<span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text2)">· manual</span>`}</span>
-          <button onclick="refreshPipelineData(this)" style="flex-shrink:0;font-size:10px;font-weight:600;color:var(--accent);background:rgba(244,93,72,0.08);border:1px solid rgba(244,93,72,0.2);border-radius:6px;padding:3px 9px;cursor:pointer;font-family:inherit;transition:all 0.15s" onmouseover="this.style.background='rgba(244,93,72,0.14)'" onmouseout="this.style.background='rgba(244,93,72,0.08)'">↺ Refresh</button>
-        </div>
-        <div class="req-pills">${reqRows}</div>
-        ${isLive
-          ? `<div style="font-size:10px;color:var(--text2);margin-top:8px">Updated ${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'})} · ${liveReqs.length} open req${liveReqs.length !== 1 ? 's' : ''}</div>`
-          : `<button class="add-req-btn" onclick="addReqRow()">+ Add Req</button>`}
-      </div>
-    </div>
-
-    <div class="rec-bottom">
-      <div class="rec-section">
-        <div class="rec-section-title">OAR by Level <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text2)">· Q1 actuals</span></div>
-        <div class="oar-row" style="gap:10px">${oarHtml}</div>
-        ${oarNote}
-      </div>
-      <div class="rec-section">
-        <div class="rec-section-title">Offer Decline Reasons <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text2)">· Q1</span></div>
-        ${declHtml}
-        ${r.declines.length > 0 ? `<div class="analysis-note risk" style="margin-top:10px"><strong>⚠ Pattern:</strong> ${r.declines.length === 1 ? 'All declines are comp-driven' : 'Multiple comp-related declines'}. Work with HM/comp team to validate bands before next offer.</div>` : ''}
-      </div>
-      <div class="rec-section">
-        <div class="rec-section-title">⚡ Recruiter Playbook</div>
-
-        ${(() => {
-          // ── Quarter Pulse ──
-          const paceStatus = projected >= r.goal * 0.85 ? 'on-track'
-                           : projected >= r.goal * 0.6  ? 'watch' : 'behind';
-          const paceColor  = paceStatus === 'on-track' ? 'var(--green)' : paceStatus === 'watch' ? 'var(--yellow)' : 'var(--red)';
-          const paceBg     = paceStatus === 'on-track' ? 'rgba(0,176,148,0.09)' : paceStatus === 'watch' ? 'rgba(245,166,35,0.09)' : 'rgba(244,93,72,0.09)';
-          const paceBorder = paceStatus === 'on-track' ? 'rgba(0,176,148,0.28)' : paceStatus === 'watch' ? 'rgba(245,166,35,0.32)' : 'rgba(244,93,72,0.28)';
-          const paceLabel  = paceStatus === 'on-track' ? '✓ On Pace' : paceStatus === 'watch' ? '⚠ Needs Push' : '↓ Behind';
-
-          // ── Win Now — reqs with candidates deepest in funnel ──
-          const deepReqs = (liveReqs || [])
-            .filter(req => (req.hc||0) + (req.ir||0) > 0)
-            .sort((a, b) => ((b.hc||0)*4 + (b.ir||0)*2 + (b.ia||0)) - ((a.hc||0)*4 + (a.ir||0)*2 + (a.ia||0)))
-            .slice(0, 3);
-
-          // ── Funnel health — recruiter avg rates vs bench ──
-          const histRates = (liveReqs||[]).map(req => (window._pipelineHistory||{})[req.reqId]).filter(h => h && h.rs >= 5);
-          const avgOf = (arr, key, minKey, minVal) => {
-            const valid = arr.filter(h => h[minKey] >= minVal && h[key] != null);
-            return valid.length > 0 ? valid.reduce((s,h) => s + h[key], 0) / valid.length : null;
-          };
-          const avgRsIR  = avgOf(histRates, 'rsToIR',  'rs', 5);
-          const avgIrHC  = avgOf(histRates, 'irToHC',  'ir', 2);
-          const avgHcOff = avgOf(histRates, 'hcToOff', 'hc', 1);
-          const stageComps = [
-            { label:'RS→IR',   val:avgRsIR,  bench:0.18, icon:'🔍' },
-            { label:'IR→HC',   val:avgIrHC,  bench:0.50, icon:'🤝' },
-            { label:'HC→Off',  val:avgHcOff, bench:0.85, icon:'📝' },
-          ].filter(s => s.val !== null);
-          const weakest = stageComps.length > 0
-            ? stageComps.reduce((w, s) => (s.val / s.bench < w.val / w.bench ? s : w))
-            : null;
-
-          // ── Action Alerts ──
-          const alerts = [];
-          if (remainingGap >= 1.5) {
-            const topRS = (liveReqs||[]).sort((a,b)=>(b.rs||0)-(a.rs||0))[0];
-            alerts.push({ type:'source', icon:'📊',
-              msg:`${remainingGap.toFixed(1)} offer gap remains — concentrate sourcing${topRS && topRS.rs > 0 ? ` on <strong>${topRS.name}</strong> (${topRS.rs} in RS)` : ' at top of funnel'}` });
-          }
-          if (r.oar < 75 && r.extended >= 2) {
-            alerts.push({ type:'oar', icon:'⚠️',
-              msg:`${r.oar}% OAR is below 75% — align with HM on comp positioning before the next extend` });
-          }
-          if (r.declines.length > 0 && r.declines[0][0].toLowerCase().includes('comp')) {
-            alerts.push({ type:'comp', icon:'💸',
-              msg:`Comp is the #1 decline driver (${r.declines[0][1]} decline${r.declines[0][1]>1?'s':''}) — flag to HM now to protect active offers` });
-          }
-          if (weakest && weakest.val < weakest.bench * 0.75) {
-            alerts.push({ type:'funnel', icon:'🔦',
-              msg:`${weakest.label} conversion is <strong>${Math.round(weakest.val*100)}%</strong> vs ${Math.round(weakest.bench*100)}% bench — this is your biggest funnel leak` });
-          }
-          if (deepReqs.some(req => (req.hc||0) > 0)) {
-            alerts.push({ type:'win', icon:'🎯',
-              msg:`You have candidates at HC — protect them: confirm comp, prep offer, align with HM on timeline` });
-          }
-          if (projected >= r.goal && r.accepted < r.goal) {
-            alerts.push({ type:'close', icon:'🏁',
-              msg:`Pipeline is projected to close — focus on converting active pipeline, not more sourcing` });
-          }
-          if (alerts.length === 0) {
-            alerts.push({ type:'green', icon:'✅', msg:'No urgent actions — pipeline looks healthy, keep the momentum going' });
-          }
-
-          const alertColors = {
-            source: { bg:'rgba(107,94,248,0.07)', border:'var(--purple)', text:'var(--purple)' },
-            oar:    { bg:'rgba(245,166,35,0.08)', border:'var(--yellow)', text:'var(--yellow)' },
-            comp:   { bg:'rgba(244,93,72,0.07)',  border:'var(--accent)', text:'var(--accent)' },
-            funnel: { bg:'rgba(245,166,35,0.08)', border:'var(--yellow)', text:'var(--yellow)' },
-            win:    { bg:'rgba(0,176,148,0.07)',  border:'var(--green)',  text:'var(--green)' },
-            close:  { bg:'rgba(0,176,148,0.07)',  border:'var(--green)',  text:'var(--green)' },
-            green:  { bg:'rgba(0,176,148,0.07)',  border:'var(--green)',  text:'var(--green)' },
-          };
-
-          return `
-            <!-- Quarter Pulse -->
-            <div style="margin-bottom:16px">
-              <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:7px">Quarter Pulse</div>
-              <div style="display:flex;gap:7px">
-                <div style="flex:1;background:var(--bg3);border-radius:9px;padding:10px;text-align:center">
-                  <div style="font-size:20px;font-weight:800;color:${barColor};line-height:1">${r.accepted}<span style="font-size:13px;font-weight:600;color:var(--text2)">/${r.goal}</span></div>
-                  <div style="font-size:9px;color:var(--text2);margin-top:3px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Accepted</div>
-                </div>
-                <div style="flex:1;background:var(--bg3);border-radius:9px;padding:10px;text-align:center">
-                  <div style="font-size:20px;font-weight:800;color:${projColor};line-height:1">${projected.toFixed(1)}</div>
-                  <div style="font-size:9px;color:var(--text2);margin-top:3px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Projected</div>
-                </div>
-                <div style="flex:1.1;background:${paceBg};border:1.5px solid ${paceBorder};border-radius:9px;padding:10px;text-align:center">
-                  <div style="font-size:13px;font-weight:800;color:${paceColor};line-height:1.2">${paceLabel}</div>
-                  <div style="font-size:9px;color:var(--text2);margin-top:3px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Q Pace</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Win Now -->
-            ${deepReqs.length > 0 ? `
-            <div style="margin-bottom:16px">
-              <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:7px">🎯 Win Now — Closest to Offer</div>
-              ${deepReqs.map(req => {
-                const stage = (req.hc||0) > 0 ? { label:'At HC', color:'var(--green)', bg:'rgba(0,176,148,0.1)', cta:'→ Prep offer' }
-                            : (req.ir||0) > 0 ? { label:'At IR',  color:'var(--yellow)', bg:'rgba(245,166,35,0.1)', cta:'→ Push to HC' }
-                            : { label:'At IA', color:'var(--purple)', bg:'rgba(107,94,248,0.1)', cta:'→ Schedule IR' };
-                const depth = (req.hc||0)*4 + (req.ir||0)*2 + (req.ia||0);
-                return `
-                <div style="display:flex;align-items:center;gap:10px;padding:8px 11px;background:var(--bg3);border-radius:9px;margin-bottom:5px;border-left:3px solid ${stage.color}">
-                  <div style="flex:1;min-width:0">
-                    <div style="font-size:11px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${req.name || req.reqId}</div>
-                    <div style="font-size:10px;color:var(--text2);margin-top:2px">
-                      ${(req.hc||0)>0?`<span style="color:var(--green);font-weight:700">${req.hc} HC</span>`:''}
-                      ${(req.ir||0)>0?`<span style="color:var(--yellow);font-weight:600;margin-left:5px">${req.ir} IR</span>`:''}
-                      ${(req.ia||0)>0?`<span style="color:var(--text2);margin-left:5px">${req.ia} IA</span>`:''}
-                      ${(req.rs||0)>0?`<span style="color:var(--text2);margin-left:5px">${req.rs} RS</span>`:''}
-                    </div>
-                  </div>
-                  <div style="font-size:10px;font-weight:700;color:${stage.color};flex-shrink:0;background:${stage.bg};padding:3px 8px;border-radius:5px">${stage.cta}</div>
-                </div>`;
-              }).join('')}
-            </div>` : ''}
-
-            <!-- Action Alerts -->
-            <div>
-              <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:7px">📋 Action Items</div>
-              ${alerts.map(a => {
-                const c = alertColors[a.type] || alertColors.green;
-                return `<div style="display:flex;align-items:flex-start;gap:9px;padding:8px 11px;border-radius:9px;margin-bottom:6px;background:${c.bg};border-left:3px solid ${c.border}">
-                  <span style="font-size:14px;flex-shrink:0;margin-top:1px">${a.icon}</span>
-                  <span style="font-size:11px;color:var(--text);line-height:1.55">${a.msg}</span>
-                </div>`;
-              }).join('')}
-            </div>
-          `;
-        })()}
-      </div>
-    </div>
-  `;
-
-  // Render mini health gauge
-  if (recGaugeChart) { recGaugeChart.destroy(); recGaugeChart = null; }
-  const gaugeEl = document.getElementById('recGaugeCanvas');
-  if (gaugeEl) {
-    recGaugeChart = new Chart(gaugeEl, {
-      type: 'doughnut',
-      data: { datasets: [{ data: [health, 100-health], backgroundColor: [hColor,'rgba(0,0,0,0.06)'], borderWidth: 0, circumference: 180, rotation: 270 }] },
-      options: { responsive:true, maintainAspectRatio:false, cutout:'72%', plugins:{legend:{display:false},tooltip:{enabled:false}}, animation:{duration:400} }
-    });
+  const map = { 'Recruiter Screen':'rs', 'Initial Assessment':'ia', 'Interview Round':'ir', 'Hiring Committee':'hc', 'Offer':'offer', 'Open Jobs':'openJobs' };
+  for (const row of rows) {
+    const key = map[row[0]];
+    if (key) data[key] = weekCols.map((_, i) => { const v = parseInt(row[i+1]); return isNaN(v) ? 0 : v; });
   }
 
-  // Screen effect based on health score
-  setTimeout(() => triggerHealthEffect(health, r.name), 200);
-}
-
-// ── Insight toggle ─────────────────────────────────────────────────
-function toggleInsight(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const isOpen = el.style.display === 'block';
-  el.style.display = isOpen ? 'none' : 'block';
-  const pill = el.closest('.req-pill');
-  if (pill) {
-    const btn = pill.querySelector('.req-insight-btn');
-    if (btn) btn.textContent = isOpen ? 'Insights ▶' : 'Insights ▼';
+  // Trim trailing weeks with no data (future week columns show as all-zeros)
+  // Use RS as the signal — find the last week with a non-zero RS value
+  if (data.rs && data.rs.length > 0) {
+    let lastIdx = data.rs.length - 1;
+    while (lastIdx > 0 && data.rs[lastIdx] === 0) lastIdx--;
+    if (lastIdx < data.rs.length - 1) {
+      const trim = i => i ? i.slice(0, lastIdx + 1) : i;
+      data.weeks = data.weeks.slice(0, lastIdx + 1);
+      data.rs    = trim(data.rs);
+      data.ia    = trim(data.ia);
+      data.ir    = trim(data.ir);
+      data.hc    = trim(data.hc);
+      data.offer = trim(data.offer);
+      data.openJobs = trim(data.openJobs);
+    }
   }
+
+  return data.weeks.length > 0 ? data : null;
 }
 
-// ── Req table helpers ──────────────────────────────────────────────
-function addReqRow() {
-  if (!currentRecruiter) return;
-  currentRecruiter.reqs.push({ name:'', rs:0, ia:0, ir:0, hc:0, offer:0 });
-  renderRecruiterView(currentRecruiter);
-}
-function removeReq(idx) {
-  if (!currentRecruiter) return;
-  currentRecruiter.reqs.splice(idx, 1);
-  renderRecruiterView(currentRecruiter);
-}
-function updateReqData(idx, field, val) {
-  if (!currentRecruiter || !currentRecruiter.reqs[idx]) return;
-  currentRecruiter.reqs[idx][field] = field === 'name' ? val : (parseInt(val) || 0);
+// ── Projection model ───────────────────────────────────────────────
+function computeProjection(oar, rec, ppr) {
+  const baseMonthly = rec * ppr * (oar / FALLBACK.baseOAR);
+  const remaining   = Math.round(baseMonthly * monthsLeft);
+  const total       = FALLBACK.hiresQ1ToDate + remaining;
+  // gap/paceNeeded are meaningless without a known goal — leave them null so
+  // every caller has to explicitly handle the no-goal case instead of
+  // silently computing NaN/Infinity from FALLBACK.q1Goal - null.
+  if (!HAS_GOAL) return { baseMonthly, remaining, total, gap: null, paceNeeded: null };
+  const gap         = Math.max(0, FALLBACK.q1Goal - total);
+  const paceNeeded  = monthsLeft > 0 ? (FALLBACK.q1Goal - FALLBACK.hiresQ1ToDate) / monthsLeft : 0;
+  return { baseMonthly, remaining, total, gap, paceNeeded };
 }
 
-// ── Health Score Screen Effects ────────────────────────────────────
-let _lastEffectKey = null;
-
-function triggerHealthEffect(score, recruiterName, bigMode) {
-  const key = `${recruiterName}:${score}`;
-  if (_lastEffectKey === key) return;
-  _lastEffectKey = key;
-  _clearHealthEffects();
-  if (score >= 80)      _launchConfetti(score, bigMode);
-  else if (score >= 60) _launchWarning('yellow', score);
-  else                  _launchWarning('red', score);
+function getMonthBreakdown(oar, rec, ppr, mult) {
+  const monthly = rec * ppr * (oar / FALLBACK.baseOAR) * mult;
+  const mayActual      = Math.round(FALLBACK.hiresQ1ToDate * (31/40));
+  const juneActual     = FALLBACK.hiresQ1ToDate - mayActual;
+  const juneRemaining  = Math.round(monthly * (21/30));
+  return [mayActual, juneActual + juneRemaining, Math.round(monthly)];
 }
 
-function _clearHealthEffects() {
-  ['__he-overlay','__he-beacon-l','__he-beacon-r','__he-badge','__he-canvas'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.remove();
+const SCENARIOS = {
+  pessimistic: { mult: 0.75, color: '#F45D48' },
+  base:        { mult: 1.00, color: '#F45D48' },
+  optimistic:  { mult: 1.35, color: '#00B094' }
+};
+
+// ── Health score ───────────────────────────────────────────────────
+function currentOfferCount() {
+  // Prefer the live snapshot (built from Current Pipeline per Job in
+  // fetchPipelinePerJob) — falls back to the FALLBACK seed only until that
+  // live fetch resolves.
+  const live = window._livePipelineData;
+  if (live && Array.isArray(live.offer) && live.offer.length) return live.offer.slice(-1)[0];
+  return FALLBACK.pipeline.offer.slice(-1)[0];
+}
+function currentIRCount() {
+  const live = window._livePipelineData;
+  if (live && Array.isArray(live.ir) && live.ir.length) return live.ir.slice(-1)[0];
+  return FALLBACK.pipeline.ir.slice(-1)[0];
+}
+
+function computeHealth(oar, rec, ppr) {
+  const proj = computeProjection(oar, rec, ppr);
+  // Without a goal there's no "pace vs. goal" to score, so that component's
+  // 50 points get redistributed across OAR and pipeline depth instead of
+  // just silently dropping to a max score of 50.
+  if (!HAS_GOAL) {
+    return Math.round(
+      Math.min(60, 60 * (oar / 0.95)) +
+      Math.min(40, 40 * Math.min(1, currentOfferCount() / 8))
+    );
+  }
+  return Math.round(
+    Math.min(50, 50 * (proj.baseMonthly / proj.paceNeeded)) +
+    Math.min(30, 30 * (oar / 0.95)) +
+    Math.min(20, 20 * Math.min(1, currentOfferCount() / 8))
+  );
+}
+function healthColor(s) { return s >= 80 ? '#00B094' : s >= 60 ? '#F5A623' : '#F45D48'; }
+function healthLabel(s) { return s >= 80 ? 'On Track' : s >= 65 ? 'At Risk' : s >= 50 ? 'Needs Attention' : 'Critical'; }
+
+Chart.defaults.color = '#7A6E65';
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+Chart.defaults.font.size = 11;
+
+// ── Gauge ──────────────────────────────────────────────────────────
+function renderGauge(score) {
+  const col = healthColor(score);
+  document.getElementById('healthValue').textContent = score;
+  document.getElementById('healthValue').style.color = col;
+  document.getElementById('healthLabel').textContent = healthLabel(score);
+  if (gaugeChart) gaugeChart.destroy();
+  gaugeChart = new Chart(document.getElementById('gaugeChart'), {
+    type: 'doughnut',
+    data: { datasets: [{ data: [score, 100-score], backgroundColor: [col,'rgba(0,0,0,0.06)'], borderWidth: 0, circumference: 180, rotation: 270 }] },
+    options: { responsive:true, maintainAspectRatio:false, cutout:'72%', plugins:{ legend:{display:false}, tooltip:{enabled:false} }, animation:{duration:600} }
+  });
+  // Screen effect — use 'team-overview' as the key so it retriggers if score changes
+  setTimeout(() => triggerHealthEffect(score, `team:${score}`, true), 400);
+}
+
+// ── Projection chart ───────────────────────────────────────────────
+function renderProjectionChart(oar, rec, ppr) {
+  const s = SCENARIOS[currentScenario];
+  const data = getMonthBreakdown(oar, rec, ppr, s.mult);
+  if (projectionChart) projectionChart.destroy();
+  projectionChart = new Chart(document.getElementById('projectionChart'), {
+    type: 'bar',
+    data: {
+      labels: ['May', 'June', 'July'],
+      datasets: [
+        { label: 'Projected FTE Hires', data, backgroundColor: ['rgba(244,93,72,0.5)','rgba(244,93,72,0.7)',s.color+'99'], borderColor: ['rgba(244,93,72,0.8)','rgba(244,93,72,0.9)',s.color], borderWidth:2, borderRadius:6 },
+        { label: 'Monthly Goal Pace', data:[18,18,18], type:'line', borderColor:'rgba(0,0,0,0.2)', borderDash:[6,4], borderWidth:2, pointRadius:0, fill:false }
+      ]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:true,position:'top',labels:{boxWidth:12,padding:12}} }, scales:{ x:{grid:{color:'rgba(0,0,0,0.05)'}}, y:{grid:{color:'rgba(0,0,0,0.05)'},beginAtZero:true,max:25,ticks:{stepSize:5}} } }
   });
 }
 
-function _launchConfetti(score, bigMode) {
-  const canvas = document.createElement('canvas');
-  canvas.id = '__he-canvas';
-  canvas.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;';
-  canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-  document.body.appendChild(canvas);
-  const ctx = canvas.getContext('2d');
-  const cols = ['#F45D48','#00876E','#F5A623','#F8D5CB','#6B5EF8','#FCEAE5','#00B094','#FFFFFF','#FFD700','#FF8C69'];
-  const shapes = ['rect','circle','ribbon','star'];
-  const count   = bigMode ? 380 : 140;
-  const fadeAt  = bigMode ? 200 : 110;
-  const maxF    = bigMode ? 300 : 180;
-  const pts = Array.from({length:count}, () => ({
-    x: Math.random() * canvas.width,
-    y: -30 - Math.random() * (bigMode ? 400 : 250),
-    vx: (Math.random()-0.5) * (bigMode ? 5 : 3.5),
-    vy: (bigMode ? 1.2 : 1.8) + Math.random() * (bigMode ? 5 : 3.5),
-    rot: Math.random()*Math.PI*2, rotV: (Math.random()-0.5)*0.2,
-    w: (bigMode ? 5 : 7) + Math.random()*(bigMode ? 12 : 9),
-    h: 4 + Math.random()*5,
-    col: cols[Math.floor(Math.random()*cols.length)],
-    shape: shapes[Math.floor(Math.random()*shapes.length)],
-    alpha: 1,
-  }));
-  // Extra burst from center-top for big mode
-  if (bigMode) {
-    const cx = canvas.width / 2;
-    for (let i = 0; i < 80; i++) {
-      const angle = -Math.PI/2 + (Math.random()-0.5)*Math.PI;
-      const speed = 4 + Math.random()*10;
-      pts.push({
-        x: cx + (Math.random()-0.5)*100, y: 80,
-        vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed,
-        rot:0, rotV:(Math.random()-0.5)*0.3,
-        w:6+Math.random()*10, h:4+Math.random()*5,
-        col: cols[Math.floor(Math.random()*cols.length)],
-        shape: shapes[Math.floor(Math.random()*shapes.length)],
-        alpha:1,
+// ── Historical pipeline reference (Pipeline History per Dept) ───────
+// This sheet has exactly one row per real Greenhouse department with
+// lifetime (current + previous fiscal year) stage totals — there is no
+// week column and no recruiter column anywhere in the spreadsheet, so this
+// can never be a live "this quarter" number or a per-recruiter number.
+// It is rendered purely as a historical reference next to (not instead of)
+// the live Funnel card above, which already reflects current pipeline
+// state from Current Pipeline per Job.
+function renderHistoricalReference(dept, teamName) {
+  const subtitleEl = document.getElementById('trendCardSubtitle');
+  const noteEl      = document.getElementById('trendAnalysisNote');
+  const container    = document.getElementById('trendChartContainer');
+  if (!container) return;
+
+  if (!dept) {
+    if (subtitleEl) subtitleEl.textContent = 'no matching Greenhouse department';
+    container.innerHTML = `<div style="padding:24px 4px;text-align:center;color:var(--text2);font-size:12px;font-style:italic">
+      No department-level historical data for "${teamName}" — ${teamName} isn't tracked as its own Greenhouse department in Pipeline History per Dept (only Engineering, Sales, Marketing, Design, Data, etc. are).
+    </div>`;
+    if (noteEl) noteEl.style.display = 'none';
+    return;
+  }
+
+  const stages = [
+    { name:'Application',   val:dept.application, color:'#8b95b0' },
+    { name:'Assessment',    val:dept.assessment,  color:'#9b59b6' },
+    { name:'Face to Face',  val:dept.faceToFace,   color:'#F5A623' },
+    { name:'Offer',         val:dept.offer,        color:'#00B094' },
+    { name:'Hired',         val:dept.hired,        color:'#F45D48' }
+  ];
+  const maxVal = Math.max(dept.application || 1, 1);
+  let html = '';
+  stages.forEach((s, i) => {
+    const barPct = Math.max(3, (s.val / maxVal) * 100);
+    if (i > 0) {
+      const prev = stages[i-1].val;
+      const rate = prev > 0 ? ((s.val / prev) * 100).toFixed(1) : '—';
+      html += `<div class="funnel-arrow">↓ ${rate}% conversion</div>`;
+    }
+    html += `<div class="funnel-row"><div class="funnel-label">${s.name}</div><div class="funnel-bar-wrap"><div class="funnel-bar" style="width:${barPct}%;background:${s.color}">${s.val.toLocaleString()}</div></div><div class="funnel-rate">${s.val.toLocaleString()}</div></div>`;
+  });
+  container.innerHTML = html;
+
+  if (subtitleEl) subtitleEl.textContent = `${dept.name} · current + previous year · Greenhouse dept-level`;
+  if (noteEl) {
+    const overallRate = dept.application > 0 ? (dept.hired / dept.application * 100) : 0;
+    noteEl.style.display = 'block';
+    noteEl.className = 'analysis-note';
+    noteEl.innerHTML = `<strong>📊 Historical reference:</strong> Across ${dept.application.toLocaleString()} applications logged for ${dept.name} over the current + previous year, ${dept.hired.toLocaleString()} converted to hires (${overallRate.toFixed(2)}% overall). This is lifetime, org-wide data for context — see the Funnel card above for this team's live current-pipeline state.`;
+  }
+}
+
+// ── Funnel ─────────────────────────────────────────────────────────
+function renderFunnel(pd) {
+  console.log('[Funnel] renderFunnel called — rs:', pd && pd.rs, 'offer:', pd && pd.offer);
+  if (!pd || !pd.rs || !pd.rs.length) { console.warn('[Funnel] bad data, skipping'); return; }
+  const latest = { rs:pd.rs.slice(-1)[0], ia:pd.ia.slice(-1)[0], ir:pd.ir.slice(-1)[0], hc:pd.hc.slice(-1)[0], offer:pd.offer.slice(-1)[0] };
+  const stages = [
+    { name:'Recruiter Screen',   val:latest.rs,    color:'#F45D48' },
+    { name:'Initial Assessment', val:latest.ia,    color:'#9b59b6' },
+    { name:'Interview Round',    val:latest.ir,    color:'#F5A623' },
+    { name:'Hiring Committee',   val:latest.hc,    color:'#00B094' },
+    { name:'Offer',              val:latest.offer, color:'#F45D48' }
+  ];
+  const maxVal = Math.max(latest.rs || 1, 1);
+  let html = '';
+  stages.forEach((s, i) => {
+    const barPct = Math.max(3, (s.val / maxVal) * 100);
+    if (i > 0) {
+      const prev = stages[i-1].val;
+      const rate = prev > 0 ? ((s.val / prev) * 100).toFixed(0) : '—';
+      html += `<div class="funnel-arrow">↓ ${rate}% conversion</div>`;
+    }
+    html += `<div class="funnel-row"><div class="funnel-label">${s.name}</div><div class="funnel-bar-wrap"><div class="funnel-bar" style="width:${barPct}%;background:${s.color}">${s.val}</div></div><div class="funnel-rate">${s.val}</div></div>`;
+  });
+  document.getElementById('funnelContainer').innerHTML = html;
+  // Date from the latest week column header, or today if not available
+  const latestWeek = pd.weeks && pd.weeks.length > 0 ? pd.weeks.slice(-1)[0] : null;
+  const dateLabel = latestWeek ? latestWeek.replace('Week of ', '') : new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  document.getElementById('funnelDate').textContent = `as of ${dateLabel}`;
+}
+
+// ── Historical chart ───────────────────────────────────────────────
+// Stored live quarterly history once loaded
+let _liveHistData = null;
+
+// Gusto fiscal quarter: Q1=May-Jul, Q2=Aug-Oct, Q3=Nov-Jan, Q4=Feb-Apr
+function getFQLabel(mo, yr) {
+  if (mo >= 5 && mo <= 7)  return `Q1 FY${(yr + 1) - 2000}`;
+  if (mo >= 8 && mo <= 10) return `Q2 FY${(yr + 1) - 2000}`;
+  if (mo >= 11)            return `Q3 FY${(yr + 1) - 2000}`;
+  if (mo === 1)            return `Q3 FY${yr - 2000}`;
+  if (mo >= 2 && mo <= 4)  return `Q4 FY${yr - 2000}`;
+  return null;
+}
+
+// Ordered list of completed history quarters to show
+const HISTORY_QUARTERS = ['Q1 FY26','Q2 FY26','Q3 FY26','Q4 FY26'];
+
+function renderHistChart(projected, liveHist) {
+  if (liveHist) _liveHistData = liveHist;
+  const hd = _liveHistData;
+  const histLabels   = hd ? hd.labels    : ['Q2 FY26','Q3 FY26','Q4 FY26'];
+  const histAccepted = hd ? hd.accepted  : [72, 41, 76];
+  const histExtended = hd ? hd.extended  : [91, 53, 91];
+  const nullPad      = histLabels.map(() => null);
+
+  if (histChart) histChart.destroy();
+  histChart = new Chart(document.getElementById('histChart'), {
+    type: 'bar',
+    data: {
+      labels: [...histLabels, 'Q1 FY27 (Current)'],
+      datasets: [
+        { label:'Accepted',          data:[...histAccepted, null],     backgroundColor:'rgba(244,93,72,0.6)',   borderColor:'#F45D48',              borderWidth:2, borderRadius:6 },
+        { label:'Extended',          data:[...histExtended, null],     backgroundColor:'rgba(244,93,72,0.15)',  borderColor:'rgba(244,93,72,0.4)',   borderWidth:1, borderRadius:6 },
+        { label:'Projected Accepted',data:[...nullPad, projected],     backgroundColor:'rgba(245,166,35,0.4)', borderColor:'#F5A623',              borderWidth:2, borderRadius:6 },
+        // No goal line for teams without a known Q1 goal yet.
+        ...(HAS_GOAL ? [{ label:`Goal (${FALLBACK.q1Goal})`, data:[...nullPad, FALLBACK.q1Goal], type:'line', borderColor:'rgba(0,0,0,0.2)', borderDash:[6,4], borderWidth:2, pointRadius:0, fill:false }] : [])
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:true,position:'top',labels:{boxWidth:12,padding:12}},
+        tooltip:{ callbacks:{ footer: (items) => {
+          const i = items[0]; const qi = i.dataIndex;
+          if (qi < histLabels.length && hd) {
+            const acc = hd.accepted[qi], ext = hd.extended[qi];
+            const oar = ext > 0 ? Math.round(acc/ext*100) : 0;
+            return `OAR: ${oar}% (${acc}/${ext}) · ${_TC.name} only`;
+          }
+          return hd ? `Live · ${_TC.name} Invite team` : 'Hardcoded fallback';
+        }}}
+      },
+      scales:{ x:{grid:{color:'rgba(0,0,0,0.05)'}}, y:{grid:{color:'rgba(0,0,0,0.05)'},beginAtZero:true,ticks:{stepSize:20}} }
+    }
+  });
+
+  // Update analysis note
+  if (hd && hd.labels.length >= 2) {
+    const lastHist  = hd.accepted[hd.labels.length - 1];
+    const prevHist  = hd.accepted[hd.labels.length - 2];
+    const lastLabel = hd.labels[hd.labels.length - 1];
+    const lastExt   = hd.extended[hd.labels.length - 1];
+    const lastOAR   = lastExt > 0 ? Math.round(lastHist/lastExt*100) : '–';
+    const prevOAR   = hd.extended[hd.labels.length-2] > 0 ? Math.round(prevHist/hd.extended[hd.labels.length-2]*100) : '–';
+    const trend     = lastHist > prevHist ? '↑' : lastHist < prevHist ? '↓' : '→';
+    const note      = document.querySelector('#histChart')?.closest('.card')?.querySelector('.analysis-note');
+    if (note) note.innerHTML = `<strong>🟢 Live · ${_TC.name} only:</strong> ${lastLabel} saw ${lastHist} accepted of ${lastExt} extended (${lastOAR}% OAR). ${trend} vs prior quarter (${prevHist} accepted, ${prevOAR}% OAR). Q1 FY27 projected: ${projected}.`;
+  }
+}
+
+// ── Team-wide offer stats, aggregated from RECRUITERS ───────────────
+// RECRUITERS is scoped to whichever team's page is loaded (window.TEAM_RECRUITERS
+// set in each team's index.html), and each recruiter's accepted/extended/oarByLevel/
+// declines fields are populated live from the Offers sheet in fetchAcceptedOffers()
+// — filtered to that same team's recruiters. So this aggregate is always this team's
+// own real numbers, never another team's.
+function aggregateTeamStats() {
+  let totalAcc = 0, totalExt = 0;
+  const byLevel = {};   // lvl -> {acc, ext}
+  const reasons = {};   // reason -> count
+  RECRUITERS.forEach(r => {
+    totalAcc += r.accepted || 0;
+    totalExt += r.extended || 0;
+    if (r.oarByLevel) {
+      Object.entries(r.oarByLevel).forEach(([lvl, v]) => {
+        if (!byLevel[lvl]) byLevel[lvl] = { acc: 0, ext: 0 };
+        byLevel[lvl].acc += v.acc || 0;
+        byLevel[lvl].ext += v.ext || 0;
       });
     }
-  }
-  function drawStar(ctx, r) {
-    ctx.beginPath();
-    for (let i=0;i<5;i++) {
-      const a = (i*4*Math.PI/5) - Math.PI/2;
-      const b = ((i*4+2)*Math.PI/5) - Math.PI/2;
-      i===0 ? ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r) : ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
-      ctx.lineTo(Math.cos(b)*(r*0.4), Math.sin(b)*(r*0.4));
+    if (r.declines && r.declines.length) {
+      r.declines.forEach(([reason, count]) => {
+        reasons[reason] = (reasons[reason] || 0) + count;
+      });
     }
-    ctx.closePath(); ctx.fill();
-  }
-  let frame = 0;
-  function tick() {
-    if (!document.getElementById('__he-canvas')) return;
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    frame++;
-    pts.forEach(p => {
-      p.x += p.vx + Math.sin(frame*0.04+p.y*0.01)*0.5;
-      p.y += p.vy; p.vy += 0.08;
-      p.rot += p.rotV;
-      if (frame > fadeAt) p.alpha = Math.max(0, p.alpha - 0.018);
-      ctx.save();
-      ctx.globalAlpha = p.alpha;
-      ctx.translate(p.x, p.y); ctx.rotate(p.rot);
-      ctx.fillStyle = p.col;
-      if (p.shape==='circle') {
-        ctx.beginPath(); ctx.arc(0,0,p.w/2,0,Math.PI*2); ctx.fill();
-      } else if (p.shape==='ribbon') {
-        ctx.beginPath(); ctx.ellipse(0,0,p.w/2,p.h/4,0,0,Math.PI*2); ctx.fill();
-      } else if (p.shape==='star') {
-        drawStar(ctx, p.w/2);
-      } else {
-        ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
-      }
-      ctx.restore();
+  });
+  const levels = {};
+  Object.entries(byLevel).forEach(([lvl, v]) => {
+    levels[lvl] = { oar: v.ext > 0 ? Math.round(v.acc / v.ext * 100) : 0, accepted: v.acc, extended: v.ext };
+  });
+  const reasonList = Object.entries(reasons).sort((a, b) => b[1] - a[1]);
+  const totalDeclines = reasonList.reduce((s, [, c]) => s + c, 0);
+  return {
+    totalAcc, totalExt,
+    oarPct: totalExt > 0 ? Math.round(totalAcc / totalExt * 100) : null,
+    levels, reasonList, totalDeclines
+  };
+}
+
+// ── Decline reasons (this team's own recruiters, real reasons only) ──
+function renderDeclineSection() {
+  const stats = aggregateTeamStats();
+  const container = document.getElementById('l4DeclineContainer');
+  if (!container) return;
+  const card = container.closest('.card');
+  const cardTitleEl = card ? card.querySelector('.card-title') : null;
+  const titleSpan   = cardTitleEl ? cardTitleEl.querySelector('span') : null;
+  const callout     = card ? card.querySelector('.insight-callout') : null;
+  if (cardTitleEl && cardTitleEl.firstChild) cardTitleEl.firstChild.textContent = `${_TC.name} Offer Decline Reasons `;
+  if (titleSpan) titleSpan.textContent = `Q1 · ${stats.totalDeclines} total decline${stats.totalDeclines !== 1 ? 's' : ''}${stats.oarPct != null ? ` · OAR ${stats.oarPct}%` : ''}`;
+
+  const reasonColors = {
+    'Cash Compensation':       '#F45D48',
+    'Equity Compensation':     '#e67e22',
+    'Role Misalignment':       '#9b59b6',
+    'Duplicate Application':   '#3d4f7a',
+    'Moving to headcount req': '#3d4f7a',
+    'Timeline Misalignment':   '#00B094',
+    "Gusto's Product/Industry":'#F5A623',
+    'Level Misalignment':      '#3d4f7a',
+    'Other':                   '#4a5568'
+  };
+
+  if (stats.totalDeclines === 0) {
+    container.innerHTML = `<div style="padding:20px 0;text-align:center;color:var(--green);font-size:12px;font-weight:600">✓ No Q1 declines for ${_TC.name}</div>`;
+    if (callout) callout.style.display = 'none';
+  } else {
+    if (callout) {
+      callout.style.display = 'block';
+      const top = stats.reasonList[0];
+      const topPct = Math.round(top[1] / stats.totalDeclines * 100);
+      const breakdown = stats.reasonList.map(([r, c]) => `${r} ${Math.round(c / stats.totalDeclines * 100)}% (${c} of ${stats.totalDeclines})`).join('; ');
+      callout.innerHTML = `<strong>⚠️ ${topPct}% of Q1 ${_TC.name} declines are "${top[0]}".</strong> ${breakdown}.`;
+    }
+    const maxCount = stats.reasonList[0][1];
+    let html = '';
+    stats.reasonList.forEach(([reason, count]) => {
+      const pct = Math.round(count / stats.totalDeclines * 100);
+      const barW = Math.round(count / maxCount * 100);
+      const col = reasonColors[reason] || '#4a5568';
+      html += `
+        <div class="decline-bar-row">
+          <div class="decline-label">${reason}</div>
+          <div class="decline-bar-wrap">
+            <div class="decline-bar" style="width:${barW}%;background:${col}">${pct}%</div>
+          </div>
+          <div class="decline-count" style="color:${col}">${count}</div>
+        </div>`;
     });
-    if (frame < maxF) requestAnimationFrame(tick); else canvas.remove();
+    container.innerHTML = html;
   }
-  requestAnimationFrame(tick);
-  _showBadge('🎉', `${score} Health Score — On fire!`, '#00876E');
+
+  // Second chart: reasons broken out by recruiter (real, team-scoped). Greenhouse's
+  // Level Anchor field is populated for well under 5% of offers, so a reliable
+  // by-level split isn't available from source data — by-recruiter is.
+  const chartCanvas = document.getElementById('declineCompChart');
+  const chartCard   = chartCanvas ? chartCanvas.closest('.card') : null;
+  const chartTitleEl = chartCard ? chartCard.querySelector('.card-title') : null;
+  const chartTitleSpan = chartTitleEl ? chartTitleEl.querySelector('span') : null;
+  if (chartTitleEl && chartTitleEl.firstChild) chartTitleEl.firstChild.textContent = 'Decline Reasons by Recruiter ';
+  if (chartTitleSpan) chartTitleSpan.textContent = 'Q1 (May–Jul 2026) · excl. interns';
+
+  if (declineCompChart) { declineCompChart.destroy(); declineCompChart = null; }
+  const recNames = RECRUITERS.filter(r => r.declines && r.declines.length).map(r => r.name);
+  if (recNames.length === 0 || !chartCanvas) return;
+  const topReasons = stats.reasonList.slice(0, 3).map(([r]) => r);
+  const palette = ['#F45D48', '#e67e22', '#9b59b6'];
+  const datasets = topReasons.map((reason, ri) => ({
+    label: reason,
+    data: recNames.map(name => {
+      const r = RECRUITERS.find(x => x.name === name);
+      const found = (r?.declines || []).find(([rr]) => rr === reason);
+      return found ? found[1] : 0;
+    }),
+    backgroundColor: palette[ri % palette.length] + 'cc',
+    borderColor: palette[ri % palette.length],
+    borderWidth: 1,
+    borderRadius: 4
+  }));
+  declineCompChart = new Chart(chartCanvas, {
+    type: 'bar',
+    data: { labels: recNames, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { boxWidth: 11, padding: 10, font: { size: 10 } } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}` } }
+      },
+      scales: {
+        x: { stacked: false, grid: { color: 'rgba(0,0,0,0.05)' } },
+        y: { stacked: false, grid: { color: 'rgba(0,0,0,0.05)' }, beginAtZero: true, ticks: { stepSize: 1 } }
+      }
+    }
+  });
 }
 
-function _launchWarning(level, score) {
-  const isRed = level === 'red';
-  const accent = isRed ? '#F45D48' : '#F5A623';
-  const label  = isRed ? `🚨 ${score} — Needs attention` : `⚠️ ${score} — Worth watching`;
+// ── OAR by level (this team's own recruiters) ────────────────────────
+// Falls back to the team's real overall OAR when Greenhouse's Level Anchor
+// field isn't populated for this team's offers (the common case), rather than
+// fabricating a level split that doesn't exist in the source data.
+function renderOARByLevel() {
+  const stats = aggregateTeamStats();
+  const container = document.getElementById('oarByLevel');
+  if (!container) return;
 
-  // Full-screen edge overlay
-  const ov = document.createElement('div');
-  ov.id = '__he-overlay';
-  ov.style.cssText = `position:fixed;inset:0;pointer-events:none;z-index:9990;border:3px solid ${accent};
-    animation:${isRed ? '__policeFlash 0.55s ease-in-out 5' : '__pulseAmber 1.4s ease-in-out 3'};`;
-  document.body.appendChild(ov);
+  if (stats.totalExt === 0) {
+    container.innerHTML = `<div style="padding:16px 4px;text-align:center;color:var(--text2);font-size:12px;font-style:italic">No offers extended for ${_TC.name} yet this quarter.</div>`;
+    return;
+  }
 
-  const dur = isRed ? 3000 : 4500;
-  setTimeout(() => ov.remove(), dur);
-  _showBadge(isRed ? '🚨' : '⚠️', label, accent);
+  const levelEntries = Object.entries(stats.levels).sort(([a], [b]) => a.localeCompare(b));
+  let html = '';
+  if (levelEntries.length > 0) {
+    levelEntries.forEach(([lvl, d]) => {
+      const col = d.oar >= 85 ? '#00B094' : d.oar >= 75 ? '#F5A623' : '#F45D48';
+      const rejected = d.extended - d.accepted;
+      html += `
+        <div class="oar-item">
+          <div class="oar-item-label">${lvl}</div>
+          <div class="oar-item-bar-wrap">
+            <div class="oar-item-bar" style="width:${d.oar}%;background:${col}">${d.oar}%</div>
+          </div>
+          <div class="oar-item-val" style="color:${col}">${d.oar}%</div>
+          <div style="font-size:10px;color:var(--text2);white-space:nowrap;flex-shrink:0;width:80px;text-align:right">${d.accepted}/${d.extended} <span style="color:#F45D48">(−${rejected})</span></div>
+        </div>`;
+    });
+  } else {
+    const col = stats.oarPct >= 85 ? '#00B094' : stats.oarPct >= 75 ? '#F5A623' : '#F45D48';
+    const rejected = stats.totalExt - stats.totalAcc;
+    html = `
+      <div class="oar-item">
+        <div class="oar-item-label">All</div>
+        <div class="oar-item-bar-wrap">
+          <div class="oar-item-bar" style="width:${stats.oarPct}%;background:${col}">${stats.oarPct}%</div>
+        </div>
+        <div class="oar-item-val" style="color:${col}">${stats.oarPct}%</div>
+        <div style="font-size:10px;color:var(--text2);white-space:nowrap;flex-shrink:0;width:80px;text-align:right">${stats.totalAcc}/${stats.totalExt} <span style="color:#F45D48">(−${rejected})</span></div>
+      </div>
+      <div style="font-size:10px;color:var(--text2);font-style:italic;margin-top:6px">Level-by-level split isn't available — Greenhouse's Level Anchor field is empty for nearly all ${_TC.name} offers this quarter, so this shows overall team OAR instead.</div>`;
+  }
+  container.innerHTML = html;
 }
 
-function _showBadge(icon, text, color) {
-  const b = document.createElement('div');
-  b.id = '__he-badge';
-  b.style.cssText = `position:fixed;top:68px;right:20px;z-index:10001;background:#fff;
-    border:2px solid ${color};border-radius:12px;padding:9px 14px;
-    display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:${color};
-    box-shadow:0 4px 24px ${color}55;pointer-events:none;
-    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-    animation:__healthSlideIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both,
-              __healthFadeOut 0.45s ease 2.6s forwards;`;
-  b.innerHTML = `<span style="font-size:17px">${icon}</span><span>${text}</span>`;
-  document.body.appendChild(b);
-  setTimeout(() => b.remove(), 3200);
+// ── Risk flags (this team's own goal, OAR, and pipeline depth) ───────
+const RISK_LEVEL_RANK = { 'risk-high': 0, 'risk-mid': 1, 'risk-low': 2 };
+
+function computeRisks(proj) {
+  const gap = proj.gap;
+  const stats = aggregateTeamStats();
+  const offerCount = currentOfferCount();
+  const latestIR = currentIRCount();
+  const pending = FALLBACK.acceptedPending || 0;
+  return [
+    !HAS_GOAL ? {
+      // No Q1 goal set yet for this team — an informational card instead of
+      // a fabricated gap-to-goal risk (which would need FALLBACK.q1Goal).
+      level: 'risk-low',
+      icon: 'ℹ️',
+      title: `${FALLBACK.acceptedTotal} FTE Accepted This Quarter`,
+      desc: `No Q1 hiring goal has been set yet for ${_TC.name} — tracking accepted offers and pace only.`
+    } : {
+      level: gap >= 15 ? 'risk-high' : gap >= 8 ? 'risk-mid' : 'risk-low',
+      icon: gap >= 15 ? '🔴' : gap >= 8 ? '🟡' : '🟢',
+      title: gap > 0 ? `${gap}-Hire FTE Gap to Goal` : 'FTE Goal Within Reach',
+      desc: gap > 0
+        ? `At current FTE pace (${proj.baseMonthly.toFixed(1)}/mo), Q1 projects to ~${proj.total} vs goal of ${FALLBACK.q1Goal}. Need ${proj.paceNeeded.toFixed(1)}/mo.`
+        : `Projected to meet or exceed the ${FALLBACK.q1Goal}-hire Q1 FTE goal.`
+    },
+    stats.totalExt > 0 ? {
+      level: stats.oarPct < 70 ? 'risk-high' : stats.oarPct < 85 ? 'risk-mid' : 'risk-low',
+      icon: stats.oarPct < 70 ? '🔴' : stats.oarPct < 85 ? '🟡' : '🟢',
+      title: `${_TC.name} OAR at ${stats.oarPct}%`,
+      desc: stats.totalDeclines > 0
+        ? `${stats.totalAcc}/${stats.totalExt} offers accepted this quarter. Top decline reason: "${stats.reasonList[0][0]}" (${stats.reasonList[0][1]} of ${stats.totalDeclines}).`
+        : `${stats.totalAcc}/${stats.totalExt} offers accepted this quarter — no declines recorded yet.`
+    } : {
+      level: 'risk-mid',
+      icon: '⚪',
+      title: `No offers extended yet for ${_TC.name}`,
+      desc: `Team OAR will populate once offers are extended and resolved in Greenhouse this quarter.`
+    },
+    {
+      level: offerCount < 6 ? 'risk-high' : offerCount < 10 ? 'risk-mid' : 'risk-low',
+      icon: offerCount < 6 ? '🔴' : offerCount < 10 ? '🟡' : '🟢',
+      title: `${offerCount} Active Offer${offerCount !== 1 ? 's' : ''}${pending > 0 ? ` + ${pending} Upcoming Start${pending !== 1 ? 's' : ''}` : ''}`,
+      desc: `${offerCount} in Offer stage${pending > 0 ? `, ${pending} accepted offer${pending !== 1 ? 's' : ''} with future start dates (through Jul 31)` : ''}. IR pipeline (${latestIR}) feeding offer stage.`
+    }
+  ];
 }
 
-// Fire init immediately if DOM already ready (common in sandboxed iframes),
-// otherwise wait for DOMContentLoaded
-if (document.readyState === 'loading') {
-  window.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
+function renderRisks(proj) {
+  const risks = computeRisks(proj);
+  const el = document.getElementById('risksContainer');
+  if (!el) return;
+  el.innerHTML = risks.map(r =>
+    `<div class="risk-card ${r.level}"><div class="risk-icon">${r.icon}</div><div><div class="risk-title">${r.title}</div><div class="risk-desc">${r.desc}</div></div></div>`
+  ).join('');
+}
+
+// ── Insight strip (top of team overview) — real per-team risk + win ──
+function renderInsightStrip(proj) {
+  const deadlineEl = document.getElementById('insightDeadlineText');
+  if (deadlineEl) deadlineEl.textContent = `${daysRemaining} days left in Q1`;
+
+  const riskTextEl = document.getElementById('insightRiskText');
+  const riskSubEl  = document.getElementById('insightRiskSub');
+  if (riskTextEl) {
+    const risks = computeRisks(proj);
+    const worst = risks.slice().sort((a, b) => (RISK_LEVEL_RANK[a.level] ?? 9) - (RISK_LEVEL_RANK[b.level] ?? 9))[0];
+    riskTextEl.textContent = worst.title;
+    if (riskSubEl) riskSubEl.textContent = worst.desc;
+  }
+
+  const winTextEl = document.getElementById('insightWinText');
+  const winSubEl  = document.getElementById('insightWinSub');
+  if (winTextEl) {
+    const perfect = RECRUITERS.filter(r => (r.extended || 0) > 0 && r.oar === 100).map(r => r.name);
+    const stats = aggregateTeamStats();
+    if (perfect.length > 0) {
+      winTextEl.textContent = perfect.length === 1 ? `${perfect[0]} at 100% OAR` : `${perfect.length} recruiters at 100% OAR`;
+      if (winSubEl) winSubEl.textContent = `${perfect.join(', ')} — no Q1 declines.`;
+    } else if (stats.oarPct != null && stats.oarPct >= 90) {
+      winTextEl.textContent = `${_TC.name} OAR at ${stats.oarPct}%`;
+      if (winSubEl) winSubEl.textContent = `${stats.totalAcc}/${stats.totalExt} offers accepted this quarter — strong close rate.`;
+    } else if (HAS_GOAL && proj.gap <= 0) {
+      winTextEl.textContent = 'On pace to hit Q1 goal';
+      if (winSubEl) winSubEl.textContent = `Projected to meet or exceed the ${FALLBACK.q1Goal}-hire goal at current pace.`;
+    } else {
+      winTextEl.textContent = HAS_GOAL
+        ? `${FALLBACK.acceptedTotal}/${FALLBACK.q1Goal} FTE hires confirmed`
+        : `${FALLBACK.acceptedTotal} FTE hires confirmed`;
+      if (winSubEl) winSubEl.textContent = 'No stand-out win flagged yet this quarter — check back as more offers resolve.';
+    }
+  }
 }
