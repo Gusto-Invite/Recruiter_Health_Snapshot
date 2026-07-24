@@ -286,7 +286,7 @@ function renderHistChart(projected, liveHist) {
         { label:'Accepted',          data:[...histAccepted, null],     backgroundColor:'rgba(244,93,72,0.6)',   borderColor:'#F45D48',              borderWidth:2, borderRadius:6 },
         { label:'Extended',          data:[...histExtended, null],     backgroundColor:'rgba(244,93,72,0.15)',  borderColor:'rgba(244,93,72,0.4)',   borderWidth:1, borderRadius:6 },
         { label:'Projected Accepted',data:[...nullPad, projected],     backgroundColor:'rgba(245,166,35,0.4)', borderColor:'#F5A623',              borderWidth:2, borderRadius:6 },
-        { label:'Goal (46)',         data:[...nullPad, FALLBACK.q1Goal], type:'line', borderColor:'rgba(0,0,0,0.2)', borderDash:[6,4], borderWidth:2, pointRadius:0, fill:false }
+        { label:`Goal (${FALLBACK.q1Goal})`, data:[...nullPad, FALLBACK.q1Goal], type:'line', borderColor:'rgba(0,0,0,0.2)', borderDash:[6,4], borderWidth:2, pointRadius:0, fill:false }
       ]
     },
     options: {
@@ -807,7 +807,7 @@ function updateKPIs(proj) {
     const impliedMonthlyNeeded = daysRemaining > 0 ? remainingAfterPipeline / (daysRemaining / 30) : 0;
     if (remainingAfterPipeline <= 0) {
       daysW.className = 'analysis-note ok';
-      daysW.innerHTML = '<strong>✓ Pipeline covers goal:</strong> Confirmed + pending starts are sufficient to hit 46.';
+      daysW.innerHTML = `<strong>✓ Pipeline covers goal:</strong> Confirmed + pending starts are sufficient to hit ${goal}.`;
     } else if (impliedMonthlyNeeded <= proj.baseMonthly * 1.2) {
       daysW.className = 'analysis-note';
       daysW.innerHTML = `<strong>Watch:</strong> Need ${remainingAfterPipeline} more hires in ${daysRemaining}d (~${impliedMonthlyNeeded.toFixed(1)}/mo). Achievable if July offer pace improves.`;
