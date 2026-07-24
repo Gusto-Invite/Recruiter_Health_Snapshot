@@ -840,7 +840,7 @@ function updateKPIs(proj) {
     const kpiPaceNeeded = document.getElementById('kpiPaceNeeded');
     if (kpiPaceNeeded) kpiPaceNeeded.textContent = `Need ${proj.paceNeeded.toFixed(1)}/mo to hit goal`;
     const kpiPaceNote = document.getElementById('kpiPaceNote');
-    if (kpiPaceNote) kpiPaceNote.textContent = `${paceRatio}% of needed pace · 9 recruiters × 1.44 PPR`;
+    if (kpiPaceNote) kpiPaceNote.textContent = `${paceRatio}% of needed pace · ${FALLBACK.baseRecruiterCount} recruiters × ${FALLBACK.basePPR.toFixed(2)} PPR`;
   } else if (kpiPaceEl) {
     kpiPaceEl.textContent = proj.baseMonthly.toFixed(1) + '/mo';
     const kpiPaceNeeded = document.getElementById('kpiPaceNeeded');
@@ -930,7 +930,7 @@ function updateKPIs(proj) {
     const impliedMonthlyNeeded = daysRemaining > 0 ? remainingAfterPipeline / (daysRemaining / 30) : 0;
     if (remainingAfterPipeline <= 0) {
       daysW.className = 'analysis-note ok';
-      daysW.innerHTML = '<strong>✓ Pipeline covers goal:</strong> Confirmed + pending starts are sufficient to hit 46.';
+      daysW.innerHTML = `<strong>✓ Pipeline covers goal:</strong> Confirmed + pending starts are sufficient to hit ${goal}.`;
     } else if (impliedMonthlyNeeded <= proj.baseMonthly * 1.2) {
       daysW.className = 'analysis-note';
       daysW.innerHTML = `<strong>Watch:</strong> Need ${remainingAfterPipeline} more hires in ${daysRemaining}d (~${impliedMonthlyNeeded.toFixed(1)}/mo). Achievable if July offer pace improves.`;
