@@ -18,9 +18,16 @@ function switchTab(nameOrIdx, el) {
 function recruiterHealth(r) {
   // Use projected total (accepted + pipeline) for goal score — reflects where they'll end up
   const projected = recruiterProjected(r);
-  const goalScore = Math.min(50, 50 * Math.min(1, projected / r.goal));
   const oarScore  = Math.min(30, 30 * (r.oar / 95));
   const pipeScore = 20;
+  if (r.goal == null) {
+    // No individual Q1 goal set for this recruiter yet (no matching row, or a
+    // blank Goals cell, in the live 'Goals by Recruiter' sheet) — redistribute
+    // the 50 goal-attainment points across OAR and pipeline depth instead of
+    // dividing by a null goal.
+    return Math.round(Math.min(75, 75 * (r.oar / 95)) + 25);
+  }
+  const goalScore = Math.min(50, 50 * Math.min(1, projected / r.goal));
   return Math.round(goalScore + oarScore + pipeScore);
 }
 // ── Global PTR helpers (used by recruiterProjected + renderRecruiterView) ──
@@ -75,6 +82,11 @@ function recruiterProjected(r) {
 //   HC    → use hcToOff
 //   Offer → count as projected offer (multiply by OAR for acceptance)
 function buildPredictiveInsight(r, liveReqs) {
+  if (r.goal == null) {
+    // No individual Q1 goal set yet for this recruiter — an honest
+    // "no goal set" note instead of computing a gap against a null goal.
+    return `<div class="pred-item"><span class="pred-icon">ℹ️</span><div class="pred-text"><strong>No Q1 goal set yet</strong> for ${r.name} — once Goals by Recruiter has a number for them, this section will show what it takes to hit it. ${r.accepted} accepted offer${r.accepted !== 1 ? 's' : ''} so far this quarter.</div></div>`;
+  }
   const needed = Math.max(0, r.goal - r.accepted);
   // Bench PTRs (fallbacks only when no historical data)
   const B = { rsToIR: 0.18, irToHC: 0.50, hcToOff: 0.85 };
@@ -218,14 +230,15 @@ function buildPredictiveInsight(r, liveReqs) {
 // ── Recruiter view renderer ────────────────────────────────────────
 function renderRecruiterView(r) {
   currentRecruiter = r;
+  const hasGoal   = r.goal != null;
   const health    = recruiterHealth(r);
   const hColor    = healthColor(health);
   const hLabel    = healthLabel(health);
   const projected = recruiterProjected(r);
-  const gap       = Math.max(0, r.goal - projected);
-  const pct       = Math.round(r.accepted / r.goal * 100);
-  const barColor  = pct >= 80 ? '#00B094' : pct >= 50 ? '#F5A623' : '#F45D48';
-  const projColor = projected >= r.goal ? '#00B094' : projected >= r.goal * 0.75 ? '#F5A623' : '#F45D48';
+  const gap       = hasGoal ? Math.max(0, r.goal - projected) : null;
+  const pct       = hasGoal ? Math.round(r.accepted / r.goal * 100) : null;
+  const barColor  = !hasGoal ? '#B8B0A8' : pct >= 80 ? '#00B094' : pct >= 50 ? '#F5A623' : '#F45D48';
+  const projColor = !hasGoal ? '#222525' : projected >= r.goal ? '#00B094' : projected >= r.goal * 0.75 ? '#F5A623' : '#F45D48';
 
   // OAR by level
   let oarHtml = '';
@@ -271,13 +284,13 @@ function renderRecruiterView(r) {
     return `${Math.round(v*100)}%${s}`;
   }
 
-  const hiresNeeded  = Math.max(0, r.goal - r.accepted);
+  const hiresNeeded  = hasGoal ? Math.max(0, r.goal - r.accepted) : 0;
   const liveReqs     = LIVE_PIPELINE[r.name];
   const isLive       = liveReqs && liveReqs.length > 0;
 
   const pipeOnlyTotal = (liveReqs || r.reqs).reduce((s, req) => s + projectedOffersFromPipe(req), 0);
   const totalProjAll  = pipeOnlyTotal; // pipeline-only (no accepted) — used for gap/insight calcs
-  const remainingGap  = Math.max(0, hiresNeeded - totalProjAll);
+  const remainingGap  = hasGoal ? Math.max(0, hiresNeeded - totalProjAll) : 0;
 
   const STAGE_COLORS = {
     rs:    { bg: 'rgba(244,93,72,0.12)',   text: '#D03A28',  label: 'RS' },
@@ -348,9 +361,11 @@ function renderRecruiterView(r) {
               <div>
                 <div style="font-size:10px;color:var(--text2);margin-bottom:3px">Recruiter gap</div>
                 <div style="font-size:11px;color:var(--text);line-height:1.6">
-                  ${remainingGap > 0
-                    ? `Needs <strong>${hiresNeeded}</strong> more · All reqs project <strong>${totalProjAll.toFixed(1)}</strong> · <span style="color:var(--red)">~${remainingGap.toFixed(1)} short</span><br>→ <strong style="color:var(--accent)">~${Math.ceil(remainingGap * rsPO)} more RS</strong> needed to close`
-                    : `<span style="color:var(--green)">✓ Pipeline on track to meet goal</span>`}
+                  ${!hasGoal
+                    ? `<span style="color:var(--text2)">No Q1 goal set for ${r.name} yet</span>`
+                    : remainingGap > 0
+                      ? `Needs <strong>${hiresNeeded}</strong> more · All reqs project <strong>${totalProjAll.toFixed(1)}</strong> · <span style="color:var(--red)">~${remainingGap.toFixed(1)} short</span><br>→ <strong style="color:var(--accent)">~${Math.ceil(remainingGap * rsPO)} more RS</strong> needed to close`
+                      : `<span style="color:var(--green)">✓ Pipeline on track to meet goal</span>`}
                 </div>
               </div>
             </div>
@@ -396,7 +411,8 @@ function renderRecruiterView(r) {
                   <strong>50pts</strong> Projected attainment (accepted + pipeline conversion ÷ goal)<br>
                   <strong>30pts</strong> OAR vs. 95% benchmark<br>
                   <strong>20pts</strong> Pipeline depth (base credit)<br>
-                  <br>≥80 = On Track · 65–79 = At Risk · 50–64 = Needs Attention · &lt;50 = Critical
+                  <br>≥80 = On Track · 65–79 = At Risk · 50–64 = Needs Attention · &lt;50 = Critical<br>
+                  <br>No Q1 goal set yet? The 50 goal-attainment points are redistributed across OAR and pipeline depth instead.
                 </div>
               </button>
             </div>
@@ -406,7 +422,7 @@ function renderRecruiterView(r) {
         <div class="rec-health-divider"></div>
         <div class="rec-health-note">
           <strong>${daysRemaining}</strong> days left in Q1 &nbsp;·&nbsp; ${pctThrough}% elapsed<br>
-          Need <strong>${Math.max(0,r.goal-r.accepted)}</strong> more accepted offers by Jul 31
+          ${hasGoal ? `Need <strong>${Math.max(0,r.goal-r.accepted)}</strong> more accepted offers by Jul 31` : `No Q1 goal set yet for ${r.name}`}
         </div>
         <div style="flex:1"></div>
         <canvas id="recGaugeCanvas" style="display:none"></canvas>
@@ -416,11 +432,11 @@ function renderRecruiterView(r) {
         <!-- Q1 Goal -->
         <div class="rec-metric-block" style="border-top: 3px solid ${barColor}">
           <div class="rec-metric-label">Q1 Goal</div>
-          <div class="rec-metric-value" style="color:var(--text)">${r.goal}</div>
+          <div class="rec-metric-value" style="color:${hasGoal ? 'var(--text)' : 'var(--text2)'}">${hasGoal ? r.goal : 'N/A'}</div>
           <div class="rec-metric-sub">FTE hires by Jul 31</div>
-          <div class="goal-bar-wrap" style="margin-top:6px"><div class="goal-bar" style="width:${OFFERS_LIVE_LOADED ? Math.min(100,pct) : 0}%;background:${barColor}"></div></div>
-          <div class="goal-pct" style="color:${barColor};margin-top:3px">${OFFERS_LIVE_LOADED ? pct+'% confirmed' : '– pending data'}</div>
-          <div class="rec-metric-note">${OFFERS_LIVE_LOADED ? `${r.accepted} accepted · ${Math.max(0,r.goal-r.accepted)} more needed` : '– accepted · loading…'}</div>
+          <div class="goal-bar-wrap" style="margin-top:6px"><div class="goal-bar" style="width:${hasGoal && OFFERS_LIVE_LOADED ? Math.min(100,pct) : 0}%;background:${barColor}"></div></div>
+          <div class="goal-pct" style="color:${barColor};margin-top:3px">${!hasGoal ? 'No Q1 goal set yet' : OFFERS_LIVE_LOADED ? pct+'% confirmed' : '– pending data'}</div>
+          <div class="rec-metric-note">${!hasGoal ? `${OFFERS_LIVE_LOADED ? r.accepted : '–'} accepted so far` : OFFERS_LIVE_LOADED ? `${r.accepted} accepted · ${Math.max(0,r.goal-r.accepted)} more needed` : '– accepted · loading…'}</div>
         </div>
         <!-- Accepted Offers -->
         <div class="rec-metric-block" style="border-top: 3px solid var(--green)">
@@ -448,9 +464,9 @@ function renderRecruiterView(r) {
         <div class="rec-metric-block" style="border-top: 3px solid ${OFFERS_LIVE_LOADED ? projColor : 'var(--border)'}">
           <div class="rec-metric-label">FTE Projected</div>
           <div class="rec-metric-value" style="color:${OFFERS_LIVE_LOADED ? projColor : 'var(--text2)'}">${OFFERS_LIVE_LOADED ? projected.toFixed(1) : '–'}</div>
-          <div class="rec-metric-sub">${OFFERS_LIVE_LOADED ? (gap > 0 ? `<span class="kpi-badge badge-red">−${gap.toFixed(1)} vs goal</span>` : `<span class="kpi-badge badge-green">On target</span>`) : 'Pending accepted data'}</div>
+          <div class="rec-metric-sub">${!hasGoal ? '<span class="kpi-badge">No goal set</span>' : OFFERS_LIVE_LOADED ? (gap > 0 ? `<span class="kpi-badge badge-red">−${gap.toFixed(1)} vs goal</span>` : `<span class="kpi-badge badge-green">On target</span>`) : 'Pending accepted data'}</div>
           <div class="rec-metric-note">${OFFERS_LIVE_LOADED ? `${r.accepted} accepted + ${pipeOnlyTotal.toFixed(1)} pipeline · ${monthsLeft.toFixed(1)} mo left` : 'Waiting for Offers sheet…'}</div>
-          ${OFFERS_LIVE_LOADED ? (projected < r.goal ? `<div class="analysis-note risk" style="margin-top:6px"><strong>⚠</strong> Need to accelerate by ${(r.goal - projected).toFixed(1)} hire${(r.goal - projected) !== 1?'s':''}</div>` : `<div class="analysis-note ok" style="margin-top:6px"><strong>✓</strong> On pace to hit goal</div>`) : ''}
+          ${hasGoal && OFFERS_LIVE_LOADED ? (projected < r.goal ? `<div class="analysis-note risk" style="margin-top:6px"><strong>⚠</strong> Need to accelerate by ${(r.goal - projected).toFixed(1)} hire${(r.goal - projected) !== 1?'s':''}</div>` : `<div class="analysis-note ok" style="margin-top:6px"><strong>✓</strong> On pace to hit goal</div>`) : ''}
         </div>
       </div>
     </div>
@@ -499,12 +515,13 @@ function renderRecruiterView(r) {
 
         ${(() => {
           // ── Quarter Pulse ──
-          const paceStatus = projected >= r.goal * 0.85 ? 'on-track'
+          const paceStatus = !hasGoal ? 'no-goal'
+                           : projected >= r.goal * 0.85 ? 'on-track'
                            : projected >= r.goal * 0.6  ? 'watch' : 'behind';
-          const paceColor  = paceStatus === 'on-track' ? 'var(--green)' : paceStatus === 'watch' ? 'var(--yellow)' : 'var(--red)';
-          const paceBg     = paceStatus === 'on-track' ? 'rgba(0,176,148,0.09)' : paceStatus === 'watch' ? 'rgba(245,166,35,0.09)' : 'rgba(244,93,72,0.09)';
-          const paceBorder = paceStatus === 'on-track' ? 'rgba(0,176,148,0.28)' : paceStatus === 'watch' ? 'rgba(245,166,35,0.32)' : 'rgba(244,93,72,0.28)';
-          const paceLabel  = paceStatus === 'on-track' ? '✓ On Pace' : paceStatus === 'watch' ? '⚠ Needs Push' : '↓ Behind';
+          const paceColor  = paceStatus === 'no-goal' ? 'var(--text2)' : paceStatus === 'on-track' ? 'var(--green)' : paceStatus === 'watch' ? 'var(--yellow)' : 'var(--red)';
+          const paceBg     = paceStatus === 'no-goal' ? 'var(--bg3)' : paceStatus === 'on-track' ? 'rgba(0,176,148,0.09)' : paceStatus === 'watch' ? 'rgba(245,166,35,0.09)' : 'rgba(244,93,72,0.09)';
+          const paceBorder = paceStatus === 'no-goal' ? 'var(--border)' : paceStatus === 'on-track' ? 'rgba(0,176,148,0.28)' : paceStatus === 'watch' ? 'rgba(245,166,35,0.32)' : 'rgba(244,93,72,0.28)';
+          const paceLabel  = paceStatus === 'no-goal' ? 'No Goal Set' : paceStatus === 'on-track' ? '✓ On Pace' : paceStatus === 'watch' ? '⚠ Needs Push' : '↓ Behind';
 
           // ── Win Now — reqs with candidates deepest in funnel ──
           const deepReqs = (liveReqs || [])
@@ -553,11 +570,13 @@ function renderRecruiterView(r) {
             alerts.push({ type:'win', icon:'🎯',
               msg:`You have candidates at HC — protect them: confirm comp, prep offer, align with HM on timeline` });
           }
-          if (projected >= r.goal && r.accepted < r.goal) {
+          if (hasGoal && projected >= r.goal && r.accepted < r.goal) {
             alerts.push({ type:'close', icon:'🏁',
               msg:`Pipeline is projected to close — focus on converting active pipeline, not more sourcing` });
           }
-          if (alerts.length === 0) {
+          if (!hasGoal) {
+            alerts.push({ type:'green', icon:'ℹ️', msg:'No Q1 goal set yet for this recruiter — action items above are based on OAR and pipeline health only' });
+          } else if (alerts.length === 0) {
             alerts.push({ type:'green', icon:'✅', msg:'No urgent actions — pipeline looks healthy, keep the momentum going' });
           }
 
@@ -577,7 +596,7 @@ function renderRecruiterView(r) {
               <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:7px">Quarter Pulse</div>
               <div style="display:flex;gap:7px">
                 <div style="flex:1;background:var(--bg3);border-radius:9px;padding:10px;text-align:center">
-                  <div style="font-size:20px;font-weight:800;color:${barColor};line-height:1">${r.accepted}<span style="font-size:13px;font-weight:600;color:var(--text2)">/${r.goal}</span></div>
+                  <div style="font-size:20px;font-weight:800;color:${barColor};line-height:1">${r.accepted}${hasGoal ? `<span style="font-size:13px;font-weight:600;color:var(--text2)">/${r.goal}</span>` : ''}</div>
                   <div style="font-size:9px;color:var(--text2);margin-top:3px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Accepted</div>
                 </div>
                 <div style="flex:1;background:var(--bg3);border-radius:9px;padding:10px;text-align:center">
