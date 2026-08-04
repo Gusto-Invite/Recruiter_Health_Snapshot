@@ -323,7 +323,7 @@ const TEAM_ROSTER = {
   GTM:         { goal: null, lead: "Lisa Pham",         recruiters: ["Gina Panacci","John Thomas","Grace Stoughton","William Brown"] },
   CX:          { goal: null, lead: "Michelle Cordray",  recruiters: ["Molly Menotti","Hannah Muhonen","Kristin Dixon","Kelly Reyes","Addison Koback"] },
   SpecTech:    { goal: null, lead: "Kebone Moloko",     recruiters: ["Jeremy Murdy","Janielle Rodriguez","Bri Majors","Abby Wagner","Alvin Ye","Ashleigh Huffman","Mallory Montanez"] },
-  Foundation:  { goal: null, lead: "Teresa Waggoner",   recruiters: ["Nico Talaugon","Dylan Cook","Helen Oh","Paul West","Staci Birkel","Chelsea Roussey","Safi Hasseeb","Merriam Yunus","Shayna Siemer","Natasha Ovsyannikova","Isabel Macias"] }
+  Foundation:  { goal: null, lead: "Teresa Waggoner",   recruiters: ["Nico Talaugon","Dylan Cook","Helen Oh","Paul West","Staci Birkel","Chelsea Roussey","Safi Hasseeb","Merriam Yunus","Shayna Siemer","Natasha Ovsyannikova","Isabel Macias","Chad Wege"] }
 };
 const RECRUITER_TO_TEAM = {};
 Object.entries(TEAM_ROSTER).forEach(([team, cfg]) => [...cfg.recruiters, cfg.lead].forEach(name => RECRUITER_TO_TEAM[name] = team));
