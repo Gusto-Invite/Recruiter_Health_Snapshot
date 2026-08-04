@@ -348,6 +348,93 @@ async function fetchAcceptedOffers() {
   }
 }
 
+// ── Live per-recruiter goals from 'Goals by Recruiter' ──────────────
+// The sheet's Name column uses inconsistent formatting vs. TEAM_RECRUITERS/
+// RECRUITERS (nicknames, first-name-only rows, alternate spellings, trailing
+// whitespace) — e.g. "Nico Watson" (sheet) vs "Nicholas Watson" (roster),
+// "Janielle" (sheet) vs "Janielle Rodriguez" (roster), "Abby Waggoner" (sheet)
+// vs "Abby Wagner" (roster). Matched via normalizeName() with an exact pass,
+// then an unambiguous-first-name pass, then a first-name + last-name-prefix
+// fuzzy pass — rather than requiring an exact string match — so a recruiter's
+// real goal still lands when the sheet's spelling doesn't exactly match.
+// Recruiters with no match (or a blank Goals cell in the sheet) get goal=null,
+// which renderRecruiterView/recruiterHealth/buildPredictiveInsight treat as
+// "no goal set" rather than falling back to a fabricated placeholder number.
+function normalizeName(s) {
+  return (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+async function fetchRecruiterGoals() {
+  try {
+    const txt = await fetchSheetRows('Goals by Recruiter');
+    if (!txt || txt.length < 20) { console.warn('[Goals] empty response'); return; }
+    const rows = lines(txt);
+    let hdrIdx = -1, nameCol = -1, goalCol = -1;
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].some(c => /^name$/i.test(c)) && rows[i].some(c => /^goals?$/i.test(c))) {
+        hdrIdx = i;
+        nameCol = rows[i].findIndex(c => /^name$/i.test(c));
+        goalCol = rows[i].findIndex(c => /^goals?$/i.test(c));
+        break;
+      }
+    }
+    if (hdrIdx < 0) { console.warn('[Goals] header row not found'); return; }
+
+    const sheetEntries = rows.slice(hdrIdx + 1)
+      .map(r => ({ name: (r[nameCol] || '').trim(), goal: parseInt(r[goalCol], 10) }))
+      .filter(e => e.name);
+
+    // Exact normalized-name → goal (only rows with a real numeric goal)
+    const byExact = {};
+    sheetEntries.forEach(e => { if (!isNaN(e.goal)) byExact[normalizeName(e.name)] = e.goal; });
+
+    // Unambiguous first-name-only → goal, for sheet rows that give just a
+    // first name (e.g. "Janielle", "Jeremy") — only used when exactly one
+    // sheet row shares that first token, to avoid mismatching two people.
+    const firstNameCounts = {};
+    sheetEntries.forEach(e => { firstNameCounts[normalizeName(e.name).split(' ')[0]] = (firstNameCounts[normalizeName(e.name).split(' ')[0]] || 0) + 1; });
+    const byFirstName = {};
+    sheetEntries.forEach(e => {
+      if (isNaN(e.goal)) return;
+      const first = normalizeName(e.name).split(' ')[0];
+      if (firstNameCounts[first] === 1) byFirstName[first] = e.goal;
+    });
+
+    let matchedCount = 0;
+    RECRUITERS.forEach(r => {
+      const norm = normalizeName(r.name);
+      const firstTok = norm.split(' ')[0];
+      const lastTok = norm.split(' ').slice(-1)[0];
+
+      let goal = byExact[norm];
+      if (goal == null) goal = byFirstName[firstTok];
+      if (goal == null) {
+        // Fuzzy pass: same first name + last name sharing a 4-char prefix
+        // (handles e.g. "Abby Wagner" ↔ "Abby Waggoner", "Bri Majors" ↔
+        // "Brianna Majors" once first-name-only matching above doesn't apply).
+        const fuzzy = sheetEntries.find(e => {
+          if (isNaN(e.goal)) return false;
+          const eNorm = normalizeName(e.name);
+          const eFirst = eNorm.split(' ')[0];
+          const eLast  = eNorm.split(' ').slice(-1)[0];
+          return eFirst === firstTok && eLast.slice(0, 4) === lastTok.slice(0, 4);
+        });
+        if (fuzzy) goal = fuzzy.goal;
+      }
+
+      if (goal != null && !isNaN(goal)) { r.goal = goal; matchedCount++; }
+      else r.goal = null; // no real goal in the sheet — "no goal set", not a guess
+    });
+    console.log(`[Goals] matched ${matchedCount}/${RECRUITERS.length} recruiters for ${_TC.name} from Goals by Recruiter`);
+
+    if (currentRecruiter && document.getElementById('recruiterView').style.display !== 'none') {
+      try { renderRecruiterView(currentRecruiter); } catch(e) { console.warn('[Goals] re-render failed:', e); }
+    }
+  } catch(e) {
+    console.error('[Goals] fetchRecruiterGoals failed:', e);
+  }
+}
+
 // ── Accepted offers table helpers ──────────────────────────────────
 function buildAcceptsTableHTML(accepts, showRecruiter) {
   if (!accepts || accepts.length === 0) return '';
@@ -574,11 +661,17 @@ async function init() {
 
   // Per-job pipeline (recruiter tabs)
   fetchPipelinePerJob();
+
+  // Real per-recruiter Q1 goals (replaces hardcoded goal:4 placeholders)
+  fetchRecruiterGoals();
 }
 
 // ── Recruiter data (Q1 FY27 actuals from Greenhouse) ──────────────
 // Each team page sets window.TEAM_RECRUITERS before loading this file.
 // Engineering data below is the fallback used when no override is set.
+// goal values here are initial placeholders only — fetchRecruiterGoals()
+// overwrites them with real numbers from the live 'Goals by Recruiter'
+// sheet once it loads (or sets goal:null if a recruiter isn't in that sheet).
 const RECRUITERS = window.TEAM_RECRUITERS || [
   { name:'Angeline Lo',        goal: 5,  accepted: 1, extended: 2,  oar: 50,
     oarByLevel: { L4:{oar:0,acc:0,ext:1}, L5:{oar:100,acc:1,ext:1} },
