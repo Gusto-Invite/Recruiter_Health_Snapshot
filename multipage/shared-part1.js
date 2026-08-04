@@ -936,3 +936,10 @@ function setScenario(scenario, el) {
   const ppr = parseFloat(document.getElementById('pprSlider').value);
   renderProjectionChart(oar, rec, ppr);
 }
+
+// ── Dual-mode data fetching (Cowork MCP or Apps Script JSONP) ────────
+// Standalone (GitHub Pages) fetches each sheet individually via ?sheet=
+// parameter — avoids combined response size limits and isolates failures.
+const APPS_SCRIPT_URL = 'https://script.google.com/a/macros/gusto.com/s/AKfycbw1GDnQXS_r7ZG2zGyU8w7jjqi6GUzqfHOCzMirkb4jnbOeKQd7GUL2MizKI-soLGA/exec';
+var _sheetCache = {};   // sheetName → resolved rows array
+var _sheetFetches = {}; // sheetName → in-flight Promise
