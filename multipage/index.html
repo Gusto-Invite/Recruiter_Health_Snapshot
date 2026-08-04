@@ -480,23 +480,23 @@ async function fetchLive() {
   } catch(e) { console.warn('[Landing] Offers fetch failed:', e); }
 
   // Open reqs count — same rule as Offers: whoever is assigned as Primary
-  // Recruiter (or the team lead) determines which team a req counts toward.
-  // Note: this report's own filter text scopes it to Engineering-adjacent
-  // cost centers (Eng/Data/Security/IT/Product/Design), so GTM and CX will
-  // legitimately show 0 here even though the matching logic covers all 5
-  // teams — their reqs simply aren't included in this particular report.
+  // Recruiter, a Secondary Recruiter, or the team lead determines which team
+  // a req counts toward. GTM/CX/SpecTech/Foundation reqs now appear in this
+  // sheet alongside Engineering — a team legitimately shows 0 only if it
+  // truly has no open reqs assigned to its own recruiters right now.
   try {
     const txt2 = await fetchSheetRows('Open Reqs');
     if (txt2 && txt2.length > 50) {
       const rows2 = lines(txt2);
-      let hIdx = -1, statCol2 = -1, reqCol2 = -1, recCol2 = -1;
+      let hIdx = -1, statCol2 = -1, reqCol2 = -1, recCol2 = -1, secRecCol2 = -1;
       for (let i = 0; i < rows2.length; i++) {
         if (rows2[i][0] === 'Job Name') {
           hIdx = i;
           const h = rows2[i];
-          statCol2 = h.indexOf('Status (Job)');
-          reqCol2  = h.indexOf('Requisition ID');
-          recCol2  = h.indexOf('Primary Recruiter');
+          statCol2   = h.indexOf('Status (Job)');
+          reqCol2    = h.indexOf('Requisition ID');
+          recCol2    = h.indexOf('Primary Recruiter');
+          secRecCol2 = h.indexOf('Secondary Recruiters');
           break;
         }
       }
@@ -505,7 +505,14 @@ async function fetchLive() {
         Object.keys(TEAM_ROSTER).forEach(t => reqCounts[t] = 0);
         rows2.slice(hIdx + 1).forEach(r => {
           if (r[statCol2] !== 'Open' || (r[reqCol2] || '').startsWith('E')) return;
-          const team = RECRUITER_TO_TEAM[(r[recCol2] || '').trim()];
+          // A req counts toward a team if its Primary Recruiter is on that
+          // team, OR — since some reqs only staff a team member as a
+          // Secondary Recruiter — if any comma-separated Secondary Recruiter is.
+          let team = RECRUITER_TO_TEAM[(r[recCol2] || '').trim()];
+          if (!team && secRecCol2 >= 0) {
+            const secs = (r[secRecCol2] || '').split(',').map(s => s.trim()).filter(Boolean);
+            for (const s of secs) { if (RECRUITER_TO_TEAM[s]) { team = RECRUITER_TO_TEAM[s]; break; } }
+          }
           if (team) reqCounts[team]++;
         });
         Object.entries(reqCounts).forEach(([team, count]) => setReqs(team, count + ' open reqs'));
